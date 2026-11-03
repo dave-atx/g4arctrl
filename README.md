@@ -10,29 +10,48 @@ The API details come from [zacharee/HINTControl](https://github.com/zacharee/HIN
 
 My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41 at 100 MHz, leaving about a third of the usual bandwidth until it's rebooted. Short drops to another band are normal handovers and fix themselves. This tool logs a sample every minute so it can tell those two cases apart.
 
-## Install (OpenWrt)
+## Install (OpenWrt 25.12)
+
+Add my package repository (once), then install. The package pulls in `curl` and `jq` and starts the `tmog4ar` service, which logs a sample a minute:
+
+```sh
+uclient-fetch -O /etc/apk/keys/tmog4ar.pem https://dave-atx.github.io/g4arctrl/tmog4ar.pem
+echo https://dave-atx.github.io/g4arctrl/packages.adb >> /etc/apk/repositories.d/customfeeds.list
+apk update && apk add tmog4ar
+```
+
+After that, `apk upgrade` picks up new versions. The key should match [openwrt/tmog4ar.pem](openwrt/tmog4ar.pem). It's a noarch package, so the repository works for any 25.12 target. If you'd rather not add a repository, download the `.apk` from [Releases](https://github.com/dave-atx/g4arctrl/releases) and `apk add --allow-untrusted ./tmog4ar-*.apk`.
+
+Channel width, PCI / ARFCN / CQI and reboot need the gateway's admin password. Without it you still get band and signal. Set `TMOG4AR_PASS` in `/etc/tmog4ar.conf` (the package installs it with mode 600, and upgrades and sysupgrade keep it), then `/etc/init.d/tmog4ar restart`.
+
+The package also adds the history directory (`/root/.tmog4ar/`) to sysupgrade's keep list.
+
+### Raspberry Pi 5 image
+
+Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, factory or sysupgrade) built with the [Image Builder](https://openwrt.org/docs/guide-user/additional-software/imagebuilder). They include tmog4ar, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above. They carry no configuration, so after flashing set the gateway password as above. A sysupgrade keeps `/etc/tmog4ar.conf` and the history.
+
+The online firmware builders (firmware selector, `owut`) only know about official packages, so their images can't include tmog4ar. Reinstall it after upgrading with those, or upgrade with these images instead.
+
+### Without the package
 
 ```sh
 apk add curl jq
-cp tmog4ar /usr/bin/ && chmod +x /usr/bin/tmog4ar
+cp tmog4ar /usr/bin/ && cp tmog4ar.init /etc/init.d/tmog4ar
+cp tmog4ar.conf.example /etc/tmog4ar.conf && chmod 600 /etc/tmog4ar.conf
+/etc/init.d/tmog4ar enable && /etc/init.d/tmog4ar start
 ```
 
-Channel width, PCI / ARFCN / CQI and reboot need the gateway's admin password. Without it you still get band and signal.
+### Building the package
+
+With the [OpenWrt SDK](https://openwrt.org/docs/guide-developer/using_the_sdk) for 25.12 (any target):
 
 ```sh
-printf 'TMOG4AR_PASS=yourpassword\n' > /etc/tmog4ar.conf
-chmod 600 /etc/tmog4ar.conf
+echo "src-link tmog4ar /path/to/g4arctrl/openwrt" >> feeds.conf
+./scripts/feeds update -a && ./scripts/feeds install tmog4ar
+make defconfig && make package/tmog4ar/compile
 ```
 
-For history, add a cron job. The optional init script saves buffered samples when the router reboots:
-
-```sh
-echo '* * * * * /usr/bin/tmog4ar log' >> /etc/crontabs/root
-/etc/init.d/cron enable; /etc/init.d/cron restart
-cp tmog4ar.init /etc/init.d/tmog4ar && /etc/init.d/tmog4ar enable
-```
-
-To keep history across a sysupgrade, add `/root/.tmog4ar/` to `/etc/sysupgrade.conf`.
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds the package and the Pi 5 image on every push. To release, bump `VERSION` in `tmog4ar` and `PKG_VERSION` in `openwrt/tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
 
 ## Usage
 
@@ -41,7 +60,7 @@ tmog4ar status [--json]      band, channel width and signal quality (default)
 tmog4ar watch [-i SECS]      live view, refreshed every 15s by default
 tmog4ar health               is it stuck? exit 0 ok, 2 degraded, 3 reboot recommended, 1 unreachable
 tmog4ar history [-s 7d]      time per band, quality per hour / day, band and tower changes
-tmog4ar log                  record one sample (from cron)
+tmog4ar daemon               sample once a minute (what the service runs)
 tmog4ar reboot [--force]     reboot the gateway
 tmog4ar raw [gateway|cell]   raw JSON from the gateway
 ```

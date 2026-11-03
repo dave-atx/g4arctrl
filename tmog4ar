@@ -12,6 +12,8 @@
 set -eu
 umask 077
 
+VERSION=0.1.0 # keep in step with PKG_VERSION in openwrt/tmog4ar/Makefile
+
 # KEY=value lines, sourced as shell. Keep it root-owned and mode 600: it may hold
 # the admin password.
 CONF="${TMOG4AR_CONF:-/etc/tmog4ar.conf}"
@@ -662,10 +664,9 @@ flush_history() {
 	prune_history
 }
 
-cmd_log() {
+# log_sample: take one sample and add it to the RAM buffer, flushing when due
+log_sample() {
 	local first
-	if [ $# -gt 0 ]; then die "log takes no options"; fi
-	init
 	collect
 	# Single-file layout from earlier versions: rename it so it sorts first and ages out.
 	if [ -f "$HISTORY_DIR/history.tsv" ]; then
@@ -675,7 +676,49 @@ cmd_log() {
 	printf '%s\n' "$S_tsv" >>"$BUFFER"
 	first=$(head -n 1 "$BUFFER" | cut -f1)
 	if [ $((TS - first)) -ge $((FLUSH_MINUTES * 60)) ]; then flush_history; fi
-	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER" 2>/dev/null || echo 0)"; fi
+}
+
+cmd_log() {
+	if [ $# -gt 0 ]; then die "log takes no options"; fi
+	init
+	log_sample
+	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER")"; fi
+}
+
+SLEEP_PID=''
+daemon_stop() {
+	if [ -n "$SLEEP_PID" ]; then kill "$SLEEP_PID" 2>/dev/null || true; fi
+	TS=$(date +%s)
+	flush_history
+	exit 0
+}
+
+# daemon: what the procd service runs. Samples every SECS seconds and writes the
+# RAM buffer to flash when stopped (including at shutdown).
+cmd_daemon() {
+	local interval=60
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-i | --interval)
+			[ $# -ge 2 ] || die "missing value for $1"
+			interval=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	case "$interval" in '' | *[!0-9]*) die "interval must be whole seconds" ;; esac
+	if [ "$interval" -lt 10 ]; then interval=10; fi
+	init
+	trap daemon_stop INT TERM HUP
+	while :; do
+		log_sample
+		# Sleep in the background so a TERM is handled right away.
+		sleep "$interval" &
+		SLEEP_PID=$!
+		wait "$SLEEP_PID" || true
+		SLEEP_PID=''
+	done
 }
 
 cmd_flush() {
@@ -858,9 +901,12 @@ Commands:
   watch [-i SECS]      Live view, refreshed every SECS seconds (default 15, min 5)
   health               Is the gateway stuck? Exit 0 ok, 2 degraded,
                        3 reboot recommended, 1 unreachable
-  log                  Record one sample (run it from cron). Samples are buffered
-                       in RAM and written to flash every TMOG4AR_FLUSH_MINUTES
-  flush                Write buffered samples to flash now (run at shutdown)
+  daemon [-i SECS]     Record a sample every SECS seconds (default 60); this is
+                       what the tmog4ar service runs. Samples are buffered in RAM
+                       and written to flash every TMOG4AR_FLUSH_MINUTES
+  log                  Record one sample (for cron, if you'd rather not run the service)
+  flush                Write buffered samples to flash now
+  version              Print the version
   history [-s DUR] [-b DUR] [--raw]
                        Time per band, quality per hour or day, and band/tower
                        changes over the last DUR (90m, 24h, 7d; default 24h)
@@ -888,12 +934,10 @@ and, if the width is known, at least TMOG4AR_MIN_BW MHz wide. Brief drops are
 normal handovers. A reboot is recommended once samples have been bad for
 TMOG4AR_STUCK_MINUTES and a good sample was seen in the past week.
 
-History logging on OpenWrt (one sample a minute; about 3 MB a month, written
-to flash in one append an hour):
-  echo '* * * * * /usr/bin/tmog4ar log' >> /etc/crontabs/root
-  /etc/init.d/cron enable; /etc/init.d/cron restart
-  cp tmog4ar.init /etc/init.d/tmog4ar; /etc/init.d/tmog4ar enable  # flush on reboot
-To keep history across sysupgrade, add /root/.tmog4ar/ to /etc/sysupgrade.conf.
+History logging on OpenWrt: the tmog4ar service (/etc/init.d/tmog4ar) runs
+"tmog4ar daemon". It takes a sample a minute (about 3 MB a month), writes to
+flash in one append an hour, and saves the buffer when stopped or at reboot.
+After changing $CONF: /etc/init.d/tmog4ar restart
 EOF
 }
 
@@ -905,6 +949,8 @@ main() {
 	watch) cmd_watch "$@" ;;
 	health) cmd_health "$@" ;;
 	log) cmd_log "$@" ;;
+	daemon) cmd_daemon "$@" ;;
+	version | --version) echo "tmog4ar $VERSION" ;;
 	flush) cmd_flush "$@" ;;
 	history) cmd_history "$@" ;;
 	reboot) cmd_reboot "$@" ;;

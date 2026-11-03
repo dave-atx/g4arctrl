@@ -1,0 +1,145 @@
+name: build
+
+# Every push and PR builds the package and the Raspberry Pi 5 image. A v* tag
+# also publishes them: a GitHub release with the .apk and images, and the apk
+# repository on GitHub Pages.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENWRT_VERSION: 25.12.6
+
+jobs:
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag=${GITHUB_REF_NAME#v}
+          script=$(sed -n 's/^VERSION=\([^ ]*\).*/\1/p' tmog4ar)
+          pkg=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmog4ar/Makefile)
+          echo "tag $tag, script $script, package $pkg"
+          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ]
+
+      # The package is noarch, so any SDK will do.
+      - name: Build with the OpenWrt SDK
+        uses: openwrt/gh-action-sdk@f5813d30eeef3534b58ac7e79c5d8842b6035434 # main, 2026-08-04
+        env:
+          ARCH: aarch64_generic-${{ env.OPENWRT_VERSION }}
+          PACKAGES: tmog4ar
+          NO_DEFAULT_FEEDS: 1
+          INDEX: 1
+          PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+
+      - name: Collect the repository
+        run: |
+          mkdir repo
+          cp bin/packages/aarch64_generic/action/packages.adb \
+             bin/packages/aarch64_generic/action/tmog4ar-*.apk \
+             openwrt/tmog4ar.pem repo/
+          ls -l repo
+
+      # Install from the repository the way a router would: with tmog4ar.pem
+      # trusted and no --allow-untrusted. Fails if the index isn't signed with
+      # the key in this repo. Forks' PRs don't get the secret, so skip those.
+      - name: Install from the repository
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          docker run --rm -v "$PWD/repo:/repo:ro" \
+            "ghcr.io/openwrt/rootfs:x86_64-$OPENWRT_VERSION" sh -c '
+              set -e
+              cp /repo/tmog4ar.pem /etc/apk/keys/
+              echo /repo/packages.adb >> /etc/apk/repositories.d/customfeeds.list
+              apk update
+              apk add tmog4ar
+              tmog4ar version'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: repo
+          path: repo/
+
+  image:
+    name: rpi-5 image
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: repo
+          path: repo
+
+      # The container runs as uid 1000, so the output directory must be
+      # writable by it.
+      - name: Build with the OpenWrt Image Builder
+        run: |
+          mkdir -m 777 image
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/image:/out" \
+            "ghcr.io/openwrt/imagebuilder:bcm27xx-bcm2712-$OPENWRT_VERSION" \
+            sh /src/openwrt/image/build.sh /src/repo /out
+          ls -l image
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image
+          path: |
+            image/*.img.gz
+            image/*.manifest
+            image/sha256sums
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
+            repo/tmog4ar-*.apk repo/tmog4ar.pem \
+            image/*.img.gz image/*.manifest image/sha256sums
+
+  pages:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package, image]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: repo
+          path: repo
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: repo
+
+      - id: deploy
+        uses: actions/deploy-pages@v5

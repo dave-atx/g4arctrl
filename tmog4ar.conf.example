@@ -1,0 +1,21 @@
+# tmog4ar settings, read as shell (KEY=value). Installed as /etc/tmog4ar.conf.
+# It can hold the admin password, so keep it mode 600.
+# After editing: /etc/init.d/tmog4ar restart
+
+# Gateway admin password. Needed for channel width, PCI / ARFCN / CQI and reboot.
+#TMOG4AR_PASS='your-password'
+#TMOG4AR_USER=admin
+
+#TMOG4AR_HOST=192.168.12.1
+#TMOG4AR_PORT=8080
+#TMOG4AR_TIMEOUT=10
+
+# What counts as healthy, and how long it can be unhealthy before a reboot is recommended.
+#TMOG4AR_PREFERRED_BANDS=n41
+#TMOG4AR_MIN_BW=40
+#TMOG4AR_STUCK_MINUTES=30
+
+# History
+#TMOG4AR_HISTORY_DIR=/root/.tmog4ar
+#TMOG4AR_RETENTION_DAYS=30
+#TMOG4AR_FLUSH_MINUTES=60
