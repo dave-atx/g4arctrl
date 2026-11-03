@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+# Writes tmog4ar's RAM-buffered history samples to flash when the router shuts
+# down or reboots, so a clean reboot loses nothing. (A power cut can still lose
+# up to TMOG4AR_FLUSH_MINUTES of samples.)
+# Install: cp tmog4ar.init /etc/init.d/tmog4ar && /etc/init.d/tmog4ar enable
+
+START=99
+STOP=10
+
+start() {
+	:
+}
+
+stop() {
+	/usr/bin/tmog4ar flush
+}

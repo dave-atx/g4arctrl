@@ -1,0 +1,921 @@
+#!/bin/sh
+# tmog4ar - status, history and health checks for the T-Mobile TMO-G4AR gateway
+#
+# Talks to the gateway's local CommonApiV1 REST API (http://192.168.12.1:8080/TMI/v1),
+# the same API zacharee/HINTControl uses. Written for OpenWrt (busybox ash + awk);
+# also runs under dash and bash. Requires curl and jq.
+#
+# shellcheck shell=sh disable=SC3043,SC2154
+# SC3043: 'local' works in busybox ash, dash and bash.
+# SC2154: S_* and H_* variables are assigned by eval of jq/awk output.
+
+set -eu
+umask 077
+
+# KEY=value lines, sourced as shell. Keep it root-owned and mode 600: it may hold
+# the admin password.
+CONF="${TMOG4AR_CONF:-/etc/tmog4ar.conf}"
+if [ -r "$CONF" ]; then
+	# shellcheck disable=SC1090
+	. "$CONF"
+fi
+
+HOST="${TMOG4AR_HOST:-192.168.12.1}"
+PORT="${TMOG4AR_PORT:-8080}"
+TIMEOUT="${TMOG4AR_TIMEOUT:-10}"
+ADMIN_USER="${TMOG4AR_USER:-admin}"
+ADMIN_PASS="${TMOG4AR_PASS:-}"
+HISTORY_DIR="${TMOG4AR_HISTORY_DIR:-${HOME:-/root}/.tmog4ar}"
+FLUSH_MINUTES="${TMOG4AR_FLUSH_MINUTES:-60}"
+RETENTION_DAYS="${TMOG4AR_RETENTION_DAYS:-30}"
+PREFERRED_BANDS="${TMOG4AR_PREFERRED_BANDS:-n41}"
+MIN_BW="${TMOG4AR_MIN_BW:-40}"
+STUCK_MINUTES="${TMOG4AR_STUCK_MINUTES:-30}"
+
+BASE="http://${HOST}:${PORT}/TMI/v1"
+RUN_DIR="${TMPDIR:-/tmp}/tmog4ar-$(id -u)"
+TOKEN_FILE="$RUN_DIR/auth-header"
+# Samples collect here (RAM on OpenWrt) and go to flash in one append per
+# TMOG4AR_FLUSH_MINUTES, to keep small writes off the SD card.
+BUFFER="$RUN_DIR/history.buf"
+LOGIN_BACKOFF=900 # after a failed login, don't try again for this long (avoid lockouts)
+GAP=900           # a gap this long between history samples breaks a "degraded since" streak
+LOOKBACK=604800   # a good sample this recent proves the preferred band is reachable here
+
+COLS='ts reg nr_bands nr_bw nr_rsrp nr_rsrq nr_sinr nr_rssi nr_bars nr_cqi nr_pci nr_arfcn nr_nb nr_cid lte_bands lte_bw lte_rsrp lte_rsrq lte_sinr lte_rssi lte_bars lte_cqi lte_pci lte_arfcn lte_nb lte_cid uptime'
+HEADER=$(printf '%s' "$COLS" | tr ' ' '\t')
+
+ESC=$(printf '\033')
+if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && [ -z "${NO_COLOR:-}" ]; then
+	RED="${ESC}[31m" GREEN="${ESC}[32m" YELLOW="${ESC}[33m" BOLD="${ESC}[1m" DIM="${ESC}[2m" RESET="${ESC}[0m"
+else
+	RED='' GREEN='' YELLOW='' BOLD='' DIM='' RESET=''
+fi
+
+TMP=''
+WATCHING=0
+
+err() { printf 'tmog4ar: %s\n' "$1" >&2; }
+die() {
+	err "$1"
+	exit 1
+}
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (apk add $1)"; }
+
+cleanup() {
+	if [ "$WATCHING" = 1 ]; then printf '%s[?25h' "$ESC"; fi
+	if [ -n "$TMP" ]; then rm -rf "$TMP"; fi
+}
+
+init() {
+	need curl
+	need jq
+	TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmog4ar.XXXXXX") || die "cannot create a temp directory"
+	trap cleanup EXIT
+	trap 'exit 130' INT TERM HUP
+}
+
+# ---------------------------------------------------------------------------
+# HTTP
+
+# http_get PATH OUTFILE [auth] -> prints the HTTP status ("000" = no response)
+http_get() {
+	if [ "${3:-}" = auth ]; then
+		curl -s -o "$2" -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			-H "@$TOKEN_FILE" "$BASE/$1" 2>/dev/null || true
+	else
+		curl -s -o "$2" -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			"$BASE/$1" 2>/dev/null || true
+	fi
+}
+
+# login [force] -> caches "Authorization: Bearer ..." in $TOKEN_FILE
+login() {
+	local now last resp token
+	if [ -z "$ADMIN_PASS" ]; then return 1; fi
+	mkdir -p "$RUN_DIR"
+	now=$(date +%s)
+	last=$(cat "$RUN_DIR/login-failed" 2>/dev/null || echo 0)
+	if [ "${1:-}" != force ] && [ $((now - last)) -lt "$LOGIN_BACKOFF" ]; then return 1; fi
+
+	# Credentials go over stdin so they never show up in `ps`.
+	resp=$(jq -n --arg u "$ADMIN_USER" --arg p "$ADMIN_PASS" '{username: $u, password: $p}' |
+		curl -s --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" -X POST \
+			-H 'Content-Type: application/json' -H 'Accept: application/json' \
+			--data-binary @- "$BASE/auth/login" 2>/dev/null) || true
+	token=$(printf '%s' "$resp" | jq -r '.auth.token // empty' 2>/dev/null) || token=''
+	if [ -z "$token" ]; then
+		echo "$now" >"$RUN_DIR/login-failed"
+		err "admin login failed (check TMOG4AR_USER/TMOG4AR_PASS); next attempt in $((LOGIN_BACKOFF / 60))m"
+		return 1
+	fi
+	rm -f "$RUN_DIR/login-failed"
+	printf 'Authorization: Bearer %s\n' "$token" >"$TOKEN_FILE.$$"
+	mv "$TOKEN_FILE.$$" "$TOKEN_FILE"
+}
+
+# auth_get PATH OUTFILE -> 0 on success; sets AUTH_STATE to nocreds|failed|ok
+auth_get() {
+	local code
+	AUTH_STATE=nocreds
+	if [ -z "$ADMIN_PASS" ]; then return 1; fi
+	AUTH_STATE=failed
+	if [ ! -s "$TOKEN_FILE" ]; then login || return 1; fi
+	code=$(http_get "$1" "$2" auth)
+	case "$code" in
+	401 | 403)
+		login || return 1
+		code=$(http_get "$1" "$2" auth)
+		;;
+	esac
+	case "$code" in
+	2??) jq -e 'type == "object"' "$2" >/dev/null 2>&1 || return 1 ;;
+	*) return 1 ;;
+	esac
+	AUTH_STATE=ok
+}
+
+# ---------------------------------------------------------------------------
+# Sampling
+
+# Merges gateway/?get=all (unauthenticated) with network/telemetry/?get=cell
+# (admin only; the only place channel width, PCI, ARFCN and CQI appear) into one
+# flat record. Output is either JSON or shell assignments (S_<field>=...) plus
+# S_tsv, the record as a history line.
+# shellcheck disable=SC2016 # jq program, not shell
+JQ_SAMPLE='
+# No regex here: OpenWrt builds jq without oniguruma, so scan/test/gsub are unavailable.
+def digits: explode | map(if . >= 48 and . <= 57 then . else 32 end) | implode;
+def bw: [tostring | digits | split(" ")[] | select(. != "") | tonumber] | if length > 0 then add else null end;
+def oneline: explode | map(if . == 9 or . == 10 or . == 13 then 32 else . end) | implode;
+def nonempty: if . == "" then null else . end;
+def rat($s; $c; $p):
+  ($c.sector // {}) as $x
+  | {
+      bands: (($s.bands // $x.bands // []) | join(",") | nonempty),
+      bw: ($c.bandwidth | bw),
+      bw_raw: $c.bandwidth,
+      rsrp: ($s.rsrp // $x.rsrp),
+      rsrq: ($s.rsrq // $x.rsrq),
+      sinr: ($s.sinr // $x.sinr),
+      rssi: ($s.rssi // $x.rssi),
+      bars: ($s.bars // $x.bars),
+      cqi: $c.cqi,
+      pci: $c.pci,
+      arfcn: $c.earfcn,
+      nb: ($s.gNBID // $s.eNBID // $x.gNBID // $x.eNBID),
+      cid: ($s.cid // $x.cid),
+      antenna: ($s.antennaUsed // $x.antennaUsed)
+    }
+  | with_entries(.key = $p + .key);
+($g[0] // {}) as $g
+| ($c[0].cell // {}) as $c
+| ($g.signal // {}) as $s
+| ($s.generic // $c.generic // {}) as $gen
+| {
+    ts: ($ts | tonumber),
+    reg: (if $reg != "" then $reg else ($gen.registration // "unknown") end),
+    apn: $gen.apn,
+    ipv6: $gen.hasIPv6,
+    roaming: $gen.roaming,
+    uptime: $g.time.upTime,
+    model: $g.device.model,
+    firmware: $g.device.softwareVersion,
+    auth: $auth
+  }
+  + rat($s."5g" // {}; $c."5g" // {}; "nr_")
+  + rat($s."4g" // {}; $c."4g" // {}; "lte_")
+| . as $o
+| if $mode == "json" then .
+  else
+    (to_entries[] | "S_\(.key)=\(.value // "" | tostring | @sh)"),
+    "S_tsv=\([($cols | split(" "))[] | $o[.] // "-" | tostring | oneline] | join("\t") | @sh)"
+  end
+'
+
+jq_sample() { # MODE (shell|json)
+	jq -nr --slurpfile g "$TMP/gw.json" --slurpfile c "$TMP/cell.json" \
+		--arg ts "$TS" --arg reg "$REG_OVERRIDE" --arg mode "$1" --arg cols "$COLS" \
+		--arg auth "$AUTH_STATE" "$JQ_SAMPLE"
+}
+
+# collect: one sample from the gateway into S_* variables. An unreachable gateway
+# is not fatal: it becomes a sample with reg=unreachable and FETCH_ERR set.
+collect() {
+	local code out
+	TS=$(date +%s)
+	FETCH_ERR=''
+	REG_OVERRIDE=''
+	AUTH_STATE=nocreds
+	code=$(http_get 'gateway/?get=all' "$TMP/gw.json")
+	case "$code" in
+	2??) jq -e 'type == "object"' "$TMP/gw.json" >/dev/null 2>&1 || FETCH_ERR="unparseable response from gateway" ;;
+	000) FETCH_ERR="gateway ${HOST}:${PORT} unreachable" ;;
+	*) FETCH_ERR="HTTP $code from gateway" ;;
+	esac
+	echo '{}' >"$TMP/cell.json"
+	if [ -n "$FETCH_ERR" ]; then
+		echo '{}' >"$TMP/gw.json"
+		REG_OVERRIDE=unreachable
+	elif ! auth_get 'network/telemetry/?get=cell' "$TMP/cell.json"; then
+		echo '{}' >"$TMP/cell.json"
+	fi
+	out=$(jq_sample shell) || die "could not parse gateway response"
+	eval "$out"
+}
+
+# ---------------------------------------------------------------------------
+# Shared awk: history line parsing and the definition of a "good" sample
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_LIB='
+BEGIN {
+	FS = "\t"
+	npref = split(pref, P, /[ ,]+/)
+	prefstr = pref; gsub(/^[ ,]+|[ ,]+$/, "", prefstr); gsub(/[ ,]+/, "/", prefstr)
+}
+$1 == "ts" { delete C; for (i = 1; i <= NF; i++) C[$i] = i; next }
+$1 !~ /^[0-9]+$/ { next }
+function f(k) { return (k in C) ? $(C[k]) : "-" }
+# What the gateway is on, e.g. "n41 100 MHz", "n41" (width unknown), "LTE b66 20 MHz"
+function key(   nb, lb, bw, k, r) {
+	r = f("reg")
+	if (r != "registered") return "(" r ")"
+	nb = f("nr_bands"); lb = f("lte_bands")
+	if (nb != "-") { k = nb; bw = f("nr_bw") }
+	else if (lb != "-") { k = "LTE " lb; bw = f("lte_bw") }
+	else return "(no signal)"
+	if (bw != "-") k = k " " bw " MHz"
+	return k
+}
+# Good = registered, on a preferred band, and (if known) at least minbw wide.
+# Sets WHY to a description when not good.
+function good(   nb, lb, i, ok, bw, r) {
+	r = f("reg")
+	if (r == "unreachable") { WHY = "gateway unreachable"; return 0 }
+	if (r != "registered") { WHY = "not registered (" r ")"; return 0 }
+	nb = f("nr_bands"); lb = f("lte_bands")
+	ok = 0
+	for (i = 1; i <= npref; i++) if (P[i] != "" && index("," nb "," lb ",", "," P[i] ",")) ok = 1
+	if (!ok) { WHY = "on " key() ", not " prefstr; return 0 }
+	bw = (nb != "-") ? f("nr_bw") : f("lte_bw")
+	if (bw != "-" && bw + 0 < minbw + 0) { WHY = "on " key() " (narrower than " minbw " MHz)"; return 0 }
+	WHY = ""
+	return 1
+}
+function fmt(t,   d, s, era, doe, yoe, doy, mp, dd, mo) {
+	if (sf) return strftime("%m-%d %H:%M", t)
+	# no strftime (e.g. macOS awk): civil-from-days with a fixed UTC offset
+	t += tzoff; d = int(t / 86400); s = t - d * 86400
+	d += 719468; era = int(d / 146097); doe = d - era * 146097
+	yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365)
+	doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)); mp = int((5 * doy + 2) / 153)
+	dd = doy - int((153 * mp + 2) / 5) + 1; mo = (mp < 10) ? mp + 3 : mp - 9
+	return sprintf("%02d-%02d %02d:%02d", mo, dd, int(s / 3600), int((s % 3600) / 60))
+}
+function dur(s) {
+	if (s >= 86400) return sprintf("%dd %dh", s / 86400, (s % 86400) / 3600)
+	if (s >= 3600) return sprintf("%dh %dm", s / 3600, (s % 3600) / 60)
+	return sprintf("%dm", s / 60)
+}
+function clean(s) { gsub(/\047/, "", s); return s }
+'
+
+AWK_SF=0
+TZOFF=0
+awk_env() {
+	local z sign hh mm
+	if awk 'BEGIN { strftime("%H", 0) }' >/dev/null 2>&1; then AWK_SF=1; fi
+	z=$(date +%z 2>/dev/null || echo +0000)
+	case "$z" in
+	[+-][0-9][0-9][0-9][0-9])
+		sign=${z%"${z#?}"}
+		hh=${z#?}
+		hh=${hh%??}
+		mm=${z#???}
+		TZOFF=$((${hh#0} * 3600 + ${mm#0} * 60))
+		if [ "$sign" = - ]; then TZOFF=$((-TZOFF)); fi
+		;;
+	esac
+}
+
+run_awk() { # PROGRAM [-v name=value...]  (reads stdin)
+	local prog="$1"
+	shift
+	awk -v pref="$PREFERRED_BANDS" -v minbw="$MIN_BW" -v gap="$GAP" -v sf="$AWK_SF" \
+		-v tzoff="$TZOFF" "$@" "$AWK_LIB$prog"
+}
+
+# ---------------------------------------------------------------------------
+# Health: is the gateway stuck on a band it should have left by now?
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HEALTH='
+$1 + 0 < now - lookback { next }
+{
+	t = $1 + 0
+	if (!first) first = t
+	g = good()
+	if (prev && t - prev > gap) streak = 0
+	if (g) { lastgood = t; streak = 0; if (t >= now - lookback) seen = 1 }
+	else if (!streak) streak = t
+	prev = t; cur = g; curwhy = WHY; curkey = key(); curreg = f("reg")
+}
+END {
+	if (curreg == "unreachable") lvl = "down"
+	else if (cur) lvl = "ok"
+	else if (now - streak >= stuck && seen) lvl = "reboot"
+	else lvl = "degraded"
+	printf "H_level=%s H_since=%d H_lastgood=%d H_seen=%d H_first=%d\n", lvl, streak, lastgood, seen, first
+	printf "H_why=\047%s\047 H_key=\047%s\047\n", clean(curwhy), clean(curkey)
+}
+'
+
+health_input() {
+	# Not `tail`: busybox tail -n is slow on big files; awk skips old rows quickly.
+	history_cat
+	printf '%s\n%s\n' "$HEADER" "$S_tsv"
+}
+
+# health_eval: sets H_level (ok|degraded|reboot|down) and H_msg
+health_eval() {
+	local out dur hint
+	out=$(health_input | run_awk "$AWK_HEALTH" -v now="$TS" -v lookback="$LOOKBACK" \
+		-v stuck="$((STUCK_MINUTES * 60))")
+	eval "$out"
+	dur=$((TS - H_since))
+	case "$H_level" in
+	down) H_msg="${RED}DOWN${RESET}  $FETCH_ERR" ;;
+	ok) H_msg="${GREEN}OK${RESET}  on $H_key" ;;
+	reboot)
+		H_msg="${RED}REBOOT RECOMMENDED${RESET}  $H_why for $(fmt_dur "$dur")"
+		H_msg="$H_msg (last good $(fmt_dur $((TS - H_lastgood))) ago). Run: tmog4ar reboot"
+		case "${S_uptime:-}" in '' | *[!0-9]*) ;; *)
+			if [ "$S_uptime" -lt "$dur" ]; then
+				H_msg="$H_msg
+        The gateway restarted $(fmt_dur "$S_uptime") ago and came back degraded; the $PREFERRED_BANDS cell may be down."
+			fi
+			;;
+		esac
+		;;
+	*)
+		if ! has_history; then
+			hint="Enable history logging to tell a passing handover from a stuck gateway (see: tmog4ar help)."
+		elif [ "$H_seen" = 0 ] && [ $((TS - H_first)) -ge 86400 ]; then
+			hint="No good samples in the past 7 days, so a reboot probably won't help."
+		else
+			hint="Reboot if this lasts past ${STUCK_MINUTES}m."
+		fi
+		H_msg="${YELLOW}DEGRADED${RESET}  $H_why"
+		if [ "$dur" -ge 60 ]; then H_msg="$H_msg for $(fmt_dur "$dur")"; fi
+		H_msg="$H_msg. $hint"
+		;;
+	esac
+}
+
+# ---------------------------------------------------------------------------
+# Rendering
+
+fmt_dur() {
+	local s="${1:-}"
+	case "$s" in '' | *[!0-9]*)
+		printf 'n/a'
+		return 0
+		;;
+	esac
+	if [ "$s" -ge 86400 ]; then
+		printf '%dd %dh' $((s / 86400)) $((s % 86400 / 3600))
+	elif [ "$s" -ge 3600 ]; then
+		printf '%dh %dm' $((s / 3600)) $((s % 3600 / 60))
+	elif [ "$s" -ge 60 ]; then
+		printf '%dm' $((s / 60))
+	else
+		printf '%ds' "$s"
+	fi
+}
+
+BAR=''
+mkbar() { # FILLED (0-10) -> BAR
+	local n="$1" i=0
+	if [ "$n" -lt 0 ]; then n=0; fi
+	if [ "$n" -gt 10 ]; then n=10; fi
+	BAR=''
+	while [ "$i" -lt 10 ]; do
+		if [ "$i" -lt "$n" ]; then BAR="${BAR}█"; else BAR="${BAR}░"; fi
+		i=$((i + 1))
+	done
+}
+
+# metric LABEL VALUE UNIT LO HI GOOD FAIR  (higher is better; the bar spans LO..HI)
+metric() {
+	local v="$2" n cls col
+	if [ -z "$v" ]; then
+		printf '  %-6s %sn/a%s\n' "$1" "$DIM" "$RESET"
+		return 0
+	fi
+	n=${v%%.*}
+	case "$n" in '' | - | *[!0-9-]*)
+		printf '  %-6s %s %s\n' "$1" "$v" "$3"
+		return 0
+		;;
+	esac
+	mkbar $(((n - $4) * 10 / ($5 - $4)))
+	if [ "$n" -ge "$6" ]; then
+		cls=good col=$GREEN
+	elif [ "$n" -ge "$7" ]; then
+		cls=fair col=$YELLOW
+	else
+		cls=poor col=$RED
+	fi
+	printf '  %-6s %s%5s %-3s%s %s  %s%s%s\n' "$1" "$col" "$v" "$3" "$RESET" "$BAR" "$col" "$cls" "$RESET"
+}
+
+render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
+	local p="$1" k details why nbl
+	local bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna
+	for k in bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna; do
+		eval "$k=\${S_$p$k:-}"
+	done
+	if [ -z "$bands" ]; then return 1; fi
+
+	printf '%s%-6s%s %s%s%s\n' "$BOLD" "$2" "$RESET" "$BOLD" "$bands" "$RESET"
+	if [ -n "$bw" ]; then
+		metric Width "$bw" MHz 0 100 $((MIN_BW * 2)) "$MIN_BW"
+	else
+		case "$AUTH_STATE" in
+		nocreds) why="needs admin login: set TMOG4AR_PASS" ;;
+		failed) why="admin login failed" ;;
+		*) why="not reported" ;;
+		esac
+		printf '  %-6s %sn/a (%s)%s\n' Width "$DIM" "$why" "$RESET"
+	fi
+	metric RSRP "$rsrp" dBm -120 -70 -90 -105
+	metric RSRQ "$rsrq" dB -20 -3 -10 -15
+	metric SINR "$sinr" dB -5 30 13 0
+	metric Bars "$bars" /4 0 4 3 2
+
+	if [ "$p" = nr_ ]; then nbl=gNB; else nbl=eNB; fi
+	details=''
+	for k in "$nbl:$nb" "CID:$cid" "PCI:$pci" "ARFCN:$arfcn" "CQI:$cqi" "RSSI:$rssi"; do
+		if [ -n "${k#*:}" ]; then details="${details:+$details · }${k%%:*} ${k#*:}"; fi
+	done
+	if [ -n "$antenna" ]; then details="${details:+$details · }$antenna"; fi
+	if [ -n "$details" ]; then printf '  %s%s%s\n' "$DIM" "$details" "$RESET"; fi
+}
+
+render_status() {
+	local mode regcol ipv6
+	printf '%s%s%s  fw %s  ·  up %s  ·  %s\n' "$BOLD" "${S_model:-TMO-G4AR}" "$RESET" \
+		"${S_firmware:-?}" "$(fmt_dur "${S_uptime:-}")" "$(date '+%Y-%m-%d %H:%M:%S')"
+	if [ -n "$FETCH_ERR" ]; then
+		printf '\n%sHealth%s  %s\n' "$BOLD" "$RESET" "$H_msg"
+		return 0
+	fi
+	if [ -n "$S_nr_bands" ] && [ -n "$S_lte_bands" ]; then
+		mode="5G NSA"
+	elif [ -n "$S_nr_bands" ]; then
+		mode="5G SA"
+	elif [ -n "$S_lte_bands" ]; then
+		mode="LTE"
+	else
+		mode="no signal"
+	fi
+	if [ "$S_reg" = registered ]; then regcol=$GREEN; else regcol=$RED; fi
+	if [ "$S_ipv6" = true ]; then ipv6=yes; else ipv6=no; fi
+	printf '%s●%s %s  ·  %s  ·  APN %s  ·  IPv6 %s\n\n' "$regcol" "$RESET" "$S_reg" "$mode" \
+		"${S_apn:-?}" "$ipv6"
+	if render_rat nr_ "5G"; then printf '\n'; fi
+	if render_rat lte_ "LTE"; then printf '\n'; fi
+	printf '%sHealth%s  %s\n' "$BOLD" "$RESET" "$H_msg"
+}
+
+# ---------------------------------------------------------------------------
+# Commands
+
+cmd_status() {
+	local json=0
+	case "${1:-}" in
+	--json) json=1 ;;
+	'') ;;
+	*) die "unknown option: $1" ;;
+	esac
+	init
+	awk_env
+	collect
+	if [ "$json" = 1 ]; then
+		jq_sample json
+	else
+		health_eval
+		render_status
+	fi
+	if [ -n "$FETCH_ERR" ]; then exit 1; fi
+}
+
+cmd_health() {
+	init
+	awk_env
+	collect
+	health_eval
+	printf '%s\n' "$H_msg"
+	case "$H_level" in
+	ok) exit 0 ;;
+	degraded) exit 2 ;;
+	reboot) exit 3 ;;
+	*) exit 1 ;;
+	esac
+}
+
+# spark LO HI "v1 v2 ..." ("-" = missing)
+spark() {
+	awk -v lo="$1" -v hi="$2" -v s="$3" 'BEGIN {
+		n = split(s, v, " "); split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", c, " ")
+		for (i = 1; i <= n; i++) {
+			if (v[i] == "-") { o = o " "; continue }
+			x = int((v[i] - lo) * 8 / (hi - lo)) + 1
+			if (x < 1) x = 1
+			if (x > 8) x = 8
+			o = o c[x]
+		}
+		print o
+	}'
+}
+
+keep_last() { # N "list" -> last N words
+	local n="$1"
+	# shellcheck disable=SC2086 # word splitting intended
+	set -- $2
+	while [ $# -gt "$n" ]; do shift; done
+	printf '%s' "$*"
+}
+
+nwords() {
+	# shellcheck disable=SC2086 # word splitting intended
+	set -- $1
+	echo $#
+}
+
+cmd_watch() {
+	local interval=15 out v sinrs='' rsrps='' oks='' okline
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-i | --interval)
+			[ $# -ge 2 ] || die "missing value for $1"
+			interval=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	case "$interval" in '' | *[!0-9]*) die "interval must be whole seconds" ;; esac
+	if [ "$interval" -lt 5 ]; then interval=5; fi
+	[ -t 1 ] || die "watch needs a terminal; use status or log in scripts"
+	init
+	awk_env
+	WATCHING=1
+	printf '%s[?25l' "$ESC"
+	while :; do
+		collect
+		health_eval
+		v=${S_nr_sinr:-$S_lte_sinr}
+		sinrs=$(keep_last 40 "$sinrs ${v:--}")
+		v=${S_nr_rsrp:-$S_lte_rsrp}
+		rsrps=$(keep_last 40 "$rsrps ${v:--}")
+		if [ "$H_level" = ok ]; then v=1; else v=0; fi
+		oks=$(keep_last 40 "$oks $v")
+		okline=$(printf '%s' "$oks" | awk -v g="$GREEN" -v r="$RED" -v z="$RESET" '{
+			for (i = 1; i <= NF; i++) o = o ($i ? g "█" : r "▁") z; print o }')
+		out=$(
+			render_status
+			printf '\n%sLast %d samples%s\n' "$BOLD" "$(nwords "$oks")" "$RESET"
+			printf '  %-6s %s\n' Good "$okline"
+			printf '  %-6s %s\n' SINR "$(spark -5 30 "$sinrs")"
+			printf '  %-6s %s\n' RSRP "$(spark -120 -70 "$rsrps")"
+			printf '\n%severy %ss · Ctrl-C to quit%s\n' "$DIM" "$interval" "$RESET"
+		)
+		printf '%s[H%s[2J%s\n' "$ESC" "$ESC" "$out"
+		sleep "$interval"
+	done
+}
+
+# ---------------------------------------------------------------------------
+# History storage: one file per day on flash (history-YYYY-MM-DD.tsv, each with
+# a header line), plus the not-yet-flushed buffer in RAM.
+
+# history_cat: every sample, oldest first (awk readers re-map columns at each header)
+history_cat() {
+	local f
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ -f "$f" ]; then cat "$f"; fi
+	done
+	if [ -s "$BUFFER" ]; then
+		printf '%s\n' "$HEADER"
+		cat "$BUFFER"
+	fi
+}
+
+has_history() {
+	local f
+	if [ -s "$BUFFER" ]; then return 0; fi
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ -s "$f" ]; then return 0; fi
+	done
+	return 1
+}
+
+# Delete files whose newest sample has aged out. Never rewrites a file.
+prune_history() {
+	local f last cutoff
+	cutoff=$((TS - RETENTION_DAYS * 86400))
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ ! -f "$f" ]; then continue; fi
+		last=$(tail -n 1 "$f" | cut -f1)
+		case "$last" in '' | *[!0-9]*) continue ;; esac
+		if [ "$last" -lt "$cutoff" ]; then rm -f "$f"; fi
+	done
+}
+
+# Move the RAM buffer to today's file on flash in a single append.
+flush_history() {
+	local f
+	if [ -s "$BUFFER" ]; then
+		# Rename first so a concurrent `log` starts a fresh buffer instead of racing us.
+		mv "$BUFFER" "$BUFFER.new"
+		cat "$BUFFER.new" >>"$BUFFER.flushing"
+		rm -f "$BUFFER.new"
+	fi
+	if [ ! -s "$BUFFER.flushing" ]; then return 0; fi
+	mkdir -p "$HISTORY_DIR"
+	f="$HISTORY_DIR/history-$(date +%Y-%m-%d).tsv"
+	if [ -s "$f" ] && [ "$(head -n 1 "$f")" != "$HEADER" ]; then
+		mv "$f" "$f.old"
+		err "history columns changed; moved $f to $f.old"
+	fi
+	if [ -s "$f" ]; then
+		cat "$BUFFER.flushing" >>"$f"
+	else
+		{
+			printf '%s\n' "$HEADER"
+			cat "$BUFFER.flushing"
+		} >"$f"
+	fi
+	rm -f "$BUFFER.flushing"
+	prune_history
+}
+
+cmd_log() {
+	local first
+	if [ $# -gt 0 ]; then die "log takes no options"; fi
+	init
+	collect
+	# Single-file layout from earlier versions: rename it so it sorts first and ages out.
+	if [ -f "$HISTORY_DIR/history.tsv" ]; then
+		mv "$HISTORY_DIR/history.tsv" "$HISTORY_DIR/history-0000-00-00.tsv"
+	fi
+	mkdir -p "$RUN_DIR"
+	printf '%s\n' "$S_tsv" >>"$BUFFER"
+	first=$(head -n 1 "$BUFFER" | cut -f1)
+	if [ $((TS - first)) -ge $((FLUSH_MINUTES * 60)) ]; then flush_history; fi
+	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER" 2>/dev/null || echo 0)"; fi
+}
+
+cmd_flush() {
+	if [ $# -gt 0 ]; then die "flush takes no options"; fi
+	TS=$(date +%s)
+	flush_history
+}
+
+dur_secs() { # 90m | 24h | 7d | 3600 -> seconds
+	local n="${1%[smhd]}"
+	case "$n" in '' | *[!0-9]*) die "bad duration: $1 (try 90m, 24h, 7d)" ;; esac
+	case "$1" in
+	*d) echo $((n * 86400)) ;;
+	*h) echo $((n * 3600)) ;;
+	*m) echo $((n * 60)) ;;
+	*) echo "$n" ;;
+	esac
+}
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HISTORY='
+$1 + 0 < since { next }
+{
+	t = $1 + 0; n++
+	if (!t0) t0 = t
+	t1 = t
+	k = key(); g = good()
+	if (!(k in cnt)) ord[++nk] = k
+	cnt[k]++; kgood[k] = g
+	rp = f("nr_rsrp"); if (rp == "-") rp = f("lte_rsrp")
+	sn = f("nr_sinr"); if (sn == "-") sn = f("lte_sinr")
+	if (rp != "-") { krp[k] += rp; krn[k]++ }
+	if (sn != "-") { ksn[k] += sn; ksnn[k]++ }
+
+	b = int((t + tzoff) / bucket) * bucket - tzoff
+	if (!(b in bn)) bord[++nbk] = b
+	bn[b]++; if (g) bg[b]++
+	bk[b, k]++
+	if (rp != "-") { brp[b] += rp; brn[b]++ }
+	if (sn != "-") { bsn[b] += sn; bsnn[b]++; if (!(b in bmin) || sn + 0 < bmin[b]) bmin[b] = sn + 0 }
+
+	tower = f("nr_nb"); if (tower == "-") tower = f("lte_nb")
+	if (n > 1) {
+		if (t - pt > gap) ev(pt, DIM "no samples for " dur(t - pt) RST)
+		moved = (tower != ptower && tower != "-" && ptower != "-")
+		if (k != pk) ev(t, paint(pk, pg) " → " paint(k, g) (moved ? DIM "  (gNB " ptower " → " tower ")" RST : ""))
+		else if (moved) ev(t, k DIM "  gNB " ptower " → " tower RST)
+	}
+	pt = t; pk = k; pg = g; ptower = tower
+}
+function ev(t, s) { E[++ne] = DIM fmt(t) RST "  " s }
+function paint(k, g) { return (g ? GRN : RED) k RST }
+function avg(s, c) { return c ? sprintf("%.0f", s / c) : "-" }
+END {
+	if (!n) { print "No samples in this window. Is logging set up? (see: tmog4ar help)"; exit }
+	printf "%sHistory%s  %s → %s  ·  %d samples  ·  good = registered on %s, at least %s MHz wide\n\n", B, RST, fmt(t0), fmt(t1), n, prefstr, minbw
+
+	for (i = 1; i <= nk; i++) for (j = i + 1; j <= nk; j++) if (cnt[ord[j]] > cnt[ord[i]]) { x = ord[i]; ord[i] = ord[j]; ord[j] = x }
+	printf "%s%-26s %6s  %5s  %4s%s\n", B, "Time on", "share", "RSRP", "SINR", RST
+	for (i = 1; i <= nk; i++) {
+		k = ord[i]
+		printf "  %s%-24s%s %5.1f%%  %5s  %4s\n", (kgood[k] ? GRN : RED), k, RST, 100 * cnt[k] / n, avg(krp[k], krn[k]), avg(ksn[k], ksnn[k])
+	}
+
+	printf "\n%s%-14s  %-20s %5s  %5s  %s%s\n", B, (bucket >= 86400 ? "Day" : "Time"), "mostly on", "good", "RSRP", "SINR avg/min", RST
+	for (i = 1; i <= nbk; i++) {
+		b = bord[i]; best = ""
+		for (j = 1; j <= nk; j++) if (((b, ord[j]) in bk) && (best == "" || bk[b, ord[j]] > bk[b, best])) best = ord[j]
+		pct = int(100 * bg[b] / bn[b])
+		col = (pct >= 99) ? GRN : ((pct >= 90) ? YEL : RED)
+		printf "  %-12s  %-20s %s%4d%%%s  %5s  %4s / %s\n", (bucket >= 86400 ? substr(fmt(b), 1, 5) : fmt(b)), best, col, pct, RST, avg(brp[b], brn[b]), avg(bsn[b], bsnn[b]), ((b in bmin) ? bmin[b] : "-")
+	}
+
+	if (ne) {
+		printf "\n%sChanges%s", B, RST
+		if (ne > maxev) printf "  %s(last %d of %d)%s", DIM, maxev, ne, RST
+		printf "\n"
+		for (i = (ne > maxev ? ne - maxev + 1 : 1); i <= ne; i++) print "  " E[i]
+	}
+}
+'
+
+cmd_history() {
+	local since=86400 bucket='' raw=0
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-s | --since)
+			[ $# -ge 2 ] || die "missing value for $1"
+			since=$(dur_secs "$2")
+			shift 2
+			;;
+		-b | --bucket)
+			[ $# -ge 2 ] || die "missing value for $1"
+			bucket=$(dur_secs "$2")
+			shift 2
+			;;
+		--raw) shift && raw=1 ;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	has_history || die "no history in $HISTORY_DIR yet (see: tmog4ar help)"
+	TS=$(date +%s)
+	if [ "$raw" = 1 ]; then
+		history_cat | awk -F '\t' -v c="$((TS - since))" '$1 == "ts" ? !h++ : $1 >= c'
+		return 0
+	fi
+	if [ -z "$bucket" ]; then
+		if [ "$since" -gt 172800 ]; then bucket=86400; else bucket=3600; fi
+	fi
+	[ "$bucket" -gt 0 ] || die "bucket must be positive"
+	awk_env
+	history_cat | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v bucket="$bucket" -v maxev=25 \
+		-v B="$BOLD" -v DIM="$DIM" -v RST="$RESET" -v GRN="$GREEN" -v YEL="$YELLOW" -v RED="$RED"
+}
+
+cmd_reboot() {
+	local force=0 answer code
+	case "${1:-}" in
+	-f | --force) force=1 ;;
+	'') ;;
+	*) die "unknown option: $1" ;;
+	esac
+	[ -n "$ADMIN_PASS" ] || die "reboot needs the admin password: set TMOG4AR_PASS or put it in $CONF"
+	init
+	awk_env
+	collect
+	[ -z "$FETCH_ERR" ] || die "$FETCH_ERR"
+	health_eval
+	printf '%s\n' "$H_msg"
+	if [ "$force" = 0 ]; then
+		[ -t 0 ] || die "not a terminal; pass --force to reboot without confirming"
+		printf 'Reboot the gateway at %s (up %s)? [y/N] ' "$HOST" "$(fmt_dur "${S_uptime:-}")"
+		read -r answer || answer=''
+		case "$answer" in
+		y | Y | yes | YES) ;;
+		*)
+			echo "Not rebooting."
+			return 0
+			;;
+		esac
+	fi
+	if [ "$AUTH_STATE" != ok ]; then login force || die "admin login failed"; fi
+	code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+		-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	if [ "$code" = 401 ] || [ "$code" = 403 ]; then
+		login force || die "admin login failed"
+		code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	fi
+	case "$code" in
+	2??) echo "Reboot requested. The gateway usually takes a few minutes to come back." ;;
+	000) die "no response to the reboot request (the gateway may already be restarting)" ;;
+	*) die "reboot failed: HTTP $code" ;;
+	esac
+}
+
+cmd_raw() {
+	local code
+	init
+	case "${1:-gateway}" in
+	gateway)
+		code=$(http_get 'gateway/?get=all' "$TMP/out.json")
+		case "$code" in 2??) ;; *) die "HTTP $code from gateway" ;; esac
+		;;
+	cell)
+		auth_get 'network/telemetry/?get=cell' "$TMP/out.json" ||
+			die "could not read cell telemetry (needs TMOG4AR_PASS)"
+		;;
+	*) die "raw: expected gateway or cell" ;;
+	esac
+	jq . "$TMP/out.json"
+}
+
+usage() {
+	cat <<EOF
+Usage: tmog4ar [command] [options]
+
+Commands:
+  status [--json]      Band, channel width and signal quality (default command)
+  watch [-i SECS]      Live view, refreshed every SECS seconds (default 15, min 5)
+  health               Is the gateway stuck? Exit 0 ok, 2 degraded,
+                       3 reboot recommended, 1 unreachable
+  log                  Record one sample (run it from cron). Samples are buffered
+                       in RAM and written to flash every TMOG4AR_FLUSH_MINUTES
+  flush                Write buffered samples to flash now (run at shutdown)
+  history [-s DUR] [-b DUR] [--raw]
+                       Time per band, quality per hour or day, and band/tower
+                       changes over the last DUR (90m, 24h, 7d; default 24h)
+  reboot [--force]     Reboot the gateway (asks first unless --force)
+  raw [gateway|cell]   Print the gateway's raw JSON
+
+Settings (environment variables, or KEY=value lines in $CONF):
+  TMOG4AR_PASS             admin password; needed for channel width, PCI/ARFCN/CQI
+                           and reboot. Use chmod 600 on the config file.
+  TMOG4AR_USER             admin username (admin)
+  TMOG4AR_HOST             gateway address (192.168.12.1)
+  TMOG4AR_PORT             API port (8080)
+  TMOG4AR_TIMEOUT          request timeout in seconds (10)
+  TMOG4AR_HISTORY_DIR      where daily history files go (\$HOME/.tmog4ar)
+  TMOG4AR_FLUSH_MINUTES    how often buffered samples go to flash (60; 0 = every
+                           sample). A crash or power cut loses at most this much.
+  TMOG4AR_RETENTION_DAYS   days of history to keep (30)
+  TMOG4AR_PREFERRED_BANDS  bands that count as healthy (n41)
+  TMOG4AR_MIN_BW           narrowest healthy channel in MHz (40)
+  TMOG4AR_STUCK_MINUTES    minutes off the preferred band before a reboot is
+                           recommended (30)
+
+Health: a sample is good when the gateway is registered on a preferred band
+and, if the width is known, at least TMOG4AR_MIN_BW MHz wide. Brief drops are
+normal handovers. A reboot is recommended once samples have been bad for
+TMOG4AR_STUCK_MINUTES and a good sample was seen in the past week.
+
+History logging on OpenWrt (one sample a minute; about 3 MB a month, written
+to flash in one append an hour):
+  echo '* * * * * /usr/bin/tmog4ar log' >> /etc/crontabs/root
+  /etc/init.d/cron enable; /etc/init.d/cron restart
+  cp tmog4ar.init /etc/init.d/tmog4ar; /etc/init.d/tmog4ar enable  # flush on reboot
+To keep history across sysupgrade, add /root/.tmog4ar/ to /etc/sysupgrade.conf.
+EOF
+}
+
+main() {
+	local cmd="${1:-status}"
+	if [ $# -gt 0 ]; then shift; fi
+	case "$cmd" in
+	status) cmd_status "$@" ;;
+	watch) cmd_watch "$@" ;;
+	health) cmd_health "$@" ;;
+	log) cmd_log "$@" ;;
+	flush) cmd_flush "$@" ;;
+	history) cmd_history "$@" ;;
+	reboot) cmd_reboot "$@" ;;
+	raw) cmd_raw "$@" ;;
+	help | -h | --help) usage ;;
+	*)
+		err "unknown command: $cmd"
+		usage >&2
+		exit 1
+		;;
+	esac
+}
+
+main "$@"
