@@ -1,0 +1,85 @@
+# AGENTS.md
+
+Notes for anyone (human or agent) changing this repo. The README covers what it does and how to install it; this covers how it's built and where it bites.
+
+## Layout
+
+- `tmog4ar`: the CLI, one POSIX shell script. Runs on the router under busybox ash; also dash / bash.
+- `tmog4ar.init`, `tmog4ar.config`: the procd service and the default `/etc/config/tmog4ar`.
+- `openwrt/tmog4ar/`: the package Makefile.
+- `openwrt/luci-app-tmog4ar/`: the LuCI app, laid out like an app in openwrt/luci and built with `luci.mk`.
+  - `htdocs/luci-static/resources/tmog4ar.js`: shared module (data access, health wording, charts, towers, the CSS).
+  - `view/tmog4ar/status.js`, `settings.js`: Status → Cellular. `view/status/include/35_tmog4ar.js`: the Overview card. `view/dashboard/include/25_tmog4ar.js`: dashboard widgets.
+  - `root/usr/share/rpcd/acl.d/`: which commands the pages may run. `po/templates/tmog4ar.pot`: strings for translation.
+- `openwrt/image/`: the Raspberry Pi 5 image build. `docs/screenshots/`: the README images.
+
+## How the pieces talk
+
+- The service runs `tmog4ar daemon`: one sample a minute, buffered in RAM (`/tmp/tmog4ar-0/history.buf`), written to `history_dir` (default `/root/.tmog4ar/`, one TSV file per day) every `flush_minutes`. Each sample, with its health, is also written to `/tmp/tmog4ar-0/latest.json`.
+- LuCI never talks to the gateway itself. It reads `latest.json`, and runs `tmog4ar status --json --max-age 15` (Refresh), `tmog4ar history --json -s N` and `tmog4ar reboot --force` through rpcd's `file.exec`. rpcd matches the ACL against the full command line, so a new CLI flag the UI needs means an ACL change too.
+- There's no ucode rpcd plugin on purpose: those run in rpcd's main loop, and a history or reboot call can take seconds. `file.exec` is asynchronous.
+- Settings are UCI only (`/etc/config/tmog4ar`, section `main`, plus anonymous `tower` sections). There are no environment variable overrides. The init script has a reload trigger, so a config change (from LuCI or `reload_config`) restarts the daemon.
+
+## Linting
+
+CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
+
+```sh
+shellcheck -s sh tmog4ar tmog4ar.init openwrt/image/build.sh
+shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/image/build.sh
+npx --yes eslint -c openwrt/luci-app-tmog4ar/eslint.config.mjs openwrt/luci-app-tmog4ar
+for f in openwrt/luci-app-tmog4ar/root/usr/share/*/*/*.json; do jq empty "$f"; done
+actionlint
+```
+
+The ESLint config lists its rules instead of importing `@eslint/js`, so `npx` works with nothing installed. Its small processor declares the variables LuCI's `'require ...'` lines create; without it every `ui` / `uci` / `tmog4ar` is "undefined". Biome was tried and doesn't fit: it can't parse a LuCI view (a top-level `return` is a parse error, with no script / global-return option), and its formatter can't keep LuCI's `[ a, b ]` bracket spacing.
+
+## Shell / awk / jq rules
+
+The CLI has to run on OpenWrt's busybox and jq builds, which are smaller than what you have on a laptop.
+
+- OpenWrt builds jq without oniguruma: no `test`, `match`, `sub`, `gsub`, `splits`, `scan`. Use `split(" ")`, `explode` / `implode`, etc.
+- awk is busybox awk. No gawk extensions (there's a fallback for `strftime`). Watch for names awk reserves (`RS` bit us) and for a function and a variable sharing a name, which is an error (`tf`, `tower` both did).
+- The awk and jq programs are single-quoted shell strings, so an apostrophe in a comment inside them ends the string. Write "the gateway reports" rather than "the gateway's".
+- Test anything parsing related under busybox on a real router (see Testing), not only locally.
+
+## History format
+
+- History is TSV with a header line; the columns are `COLS` in `tmog4ar`. Changing `COLS` makes the next flush rename that day's file to `.old`, so don't add columns casually.
+- New fields the UI needs but history doesn't (GPS, TAC, MCC / MNC) go in the JSON sample only, not `COLS`.
+- Readers re-map columns at every header line, so old files with fewer columns still read.
+
+## Gateway quirks
+
+- The gateway sometimes reports the serving tower's ID with one bit missing for a few minutes (seen: bit 20) while the cell ID, PCI, channel and signal stay the same. `servtower()` in the awk library treats that as the previous tower. Don't "fix" it away.
+- `cell.gps` in the cell telemetry is the gateway's own position (one fix for the device, not per cell), and needs the admin login.
+- After a failed login the CLI won't retry the same username / password for 15 minutes (`login-failed` stores a hash of them). Changing the password retries right away. Keep that: repeated failed logins can lock the gateway's admin account.
+
+## LuCI rules
+
+- The CSS is embedded in `tmog4ar.js` as a `<style>` element, not shipped as a `.css` file. A separate stylesheet failed to apply in Safari on an iPad, and without it the charts render as solid black shapes. The SVG shapes also carry their own fill / stroke attributes for the same reason.
+- Don't use `.table` for label / value lists: themes size its cells their own way (bootstrap makes `.table` a block with a separate anonymous table per row) and long text overflows. The label / value rows use their own grid (`.tmog4ar-kv-row`).
+- Information has to work on touch screens: no hover-only tooltips for anything important. The metric explanations are visible text for that reason.
+- Nothing depends on luci-mod-dashboard (or luci-mod-status); their include files just sit unused without them. The dashboard include must not `'require'` anything from `view.dashboard.lib`: dashboards older than September 2026 don't have those modules and load every include in one `Promise.all`, so a failed require breaks the whole page. It loads them at runtime and renders `null` (which old dashboards skip) when they're missing.
+- Polled redraws go through `keepPlace()` in `status.js`, and new rows / headings that get redrawn should carry a stable `data-place` key, so the page doesn't jump when something above the reader changes height.
+- Check pages in Chromium (most users) and Safari / WebKit, in light and dark mode, at a desktop width, around iPad width (1024 px) and phone width (~412 px), and with the console open for errors.
+- After changing user-visible strings, regenerate the template with LuCI's scanner: `perl /path/to/luci/build/i18n-scan.pl openwrt/luci-app-tmog4ar > openwrt/luci-app-tmog4ar/po/templates/tmog4ar.pot` (the script is `build/i18n-scan.pl` in openwrt/luci).
+- To move the app into openwrt/luci: drop `PKG_VERSION` from its Makefile, include `../../luci.mk`, and delete `eslint.config.mjs` (ESLint uses the config nearest each file, so ours would override the repo's). The code passes openwrt/luci's own config with 0 errors; it warns about `tmog4ar` and `charts` because its list of known globals only has the core modules, which is normal for an app with its own module.
+
+## Versions and releases
+
+Keep three versions in step: `VERSION` in `tmog4ar`, and `PKG_VERSION` in both Makefiles. CI checks them against the tag. A `vX.Y.Z` tag builds, signs and publishes the packages to GitHub Pages and makes a release with the Pi 5 images.
+
+## Testing
+
+- Locally: a fake `uci` on `PATH` (answering `uci -q get tmog4ar.main.X` and `uci -q show tmog4ar`) plus a copy of some history lets you run `history`, `history --json` and the tower code without a router. Point `host` at something unreachable so nothing talks to a real gateway.
+- On a router: copy the script to a scratch directory and run it with a `uci` shim that runs `uci -c` against a private config directory, so it doesn't touch the installed package or the running daemon.
+- To install a dev build, copy to a new name and `mv` over `/usr/bin/tmog4ar`. The running daemon is a shell reading its script as it goes; overwriting the file in place can break it. After changing LuCI files, `rm -f /tmp/luci-indexcache*` so browsers fetch them again.
+- If the gateway is anyone's real internet connection: never run `tmog4ar reboot` or confirm the reboot dialog while testing, never save a wrong admin password (see the lockout above), and back up `/etc/config/tmog4ar` and the history first.
+
+## Privacy
+
+This repo and its screenshots are public. Don't commit anything that locates a real user:
+
+- No real coordinates, tower IDs (gNB / eNB), cell IDs, PCIs, TACs, public IPs or IPv6 prefixes, hostnames or passwords. Examples use gNB `1234567` and coordinates around Bellevue, WA (`47.6101, -122.2015`).
+- Screenshots are taken from a real router with Playwright rewriting the responses from `/ubus` and `/cgi-bin/cgi-*` before the page sees them (IDs, names, coordinates shifted together so distances still look right, IPv6, the password), then the page text and link targets are checked for the real values before saving. Note that `latest.json` comes through `cgi-download`, not ubus.

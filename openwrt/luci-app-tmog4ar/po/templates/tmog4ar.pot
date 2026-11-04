@@ -1,0 +1,978 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+#: htdocs/luci-static/resources/tmog4ar.js:398
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:47
+msgid "%d MHz"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:297
+msgid "%d band change"
+msgid_plural "%d band changes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:295
+msgid "%d sample"
+msgid_plural "%d samples"
+msgstr[0] ""
+msgstr[1] ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:304
+msgid "%d stretch longer than %dm"
+msgid_plural "%d stretches longer than %dm"
+msgstr[0] ""
+msgstr[1] ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:298
+msgid "%d tower change"
+msgid_plural "%d tower changes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:366
+msgid "%dd %dh"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:368
+msgid "%dh %dm"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:370
+msgid "%dm"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:372
+msgid "%ds"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:168
+msgid "%s (%.2f MHz)"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:376
+msgid "%s ago"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:462
+msgid "%s for %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:451
+msgid "%s for %s (last good %s ago)."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:911
+msgid "%s, %02d:00: %d%% good, mostly %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:855
+msgid "%s: avg %s, min %s, max %s %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:9
+msgid "24 hours"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:11
+msgid "30 days"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:491
+msgid "50–90%"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:238
+msgid "5G"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:89
+msgid "5G (gNB)"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:403
+msgid "5G NSA"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:405
+msgid "5G SA"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:22
+msgid ""
+"5G SA is 5G on its own. 5G NSA is 5G added on top of an LTE (4G) connection. "
+"LTE is 4G only."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:10
+msgid "7 days"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:490
+msgid "90–99%"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:489
+msgid "99% or more"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:34
+msgid ""
+"A short label that nearby cells use to tell each other apart. Not unique: it "
+"repeats across a city."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:32
+msgid "API port"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:230
+msgid "APN"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:168
+msgid "ARFCN"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:234
+msgid "Admin login"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:18
+msgid "Admin password"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:23
+msgid "Admin username"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:37
+msgid ""
+"All the radio energy received, including noise and interference. Less "
+"telling than RSRP."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:171
+msgid "Antenna"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:192
+msgid "Ask the gateway now"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:207
+msgid "Asks the gateway unless the last sample is under %d seconds old"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:25
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:313
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:319
+msgid "Band"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:474
+msgid "Band over time"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:43
+msgid "Bands that count as healthy, as the gateway names them (e.g. n41)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:181
+msgid "Bars"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:501
+msgid "By day"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:501
+msgid "By hour"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:169
+msgid "CQI"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:643
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:120
+msgid "Cancel"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:166
+msgid "Cell ID"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:591
+msgid "CellMapper link, or 47.6101, -122.2015"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:20
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:23
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:9
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:539
+#: root/usr/share/luci/menu.d/luci-app-tmog4ar.json:3
+msgid "Cellular"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:7
+msgid "Cellular gateway"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:24
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:94
+msgid "Cellular signal"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:431
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:435
+msgid "Change"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:504
+msgid "Changes"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:177
+msgid "Channel width"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:107
+msgid "Collecting data..."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:226
+msgid "Connection"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:453
+msgid "Could not load history: %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:109
+msgid "Could not refresh: %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:118
+msgid "Current health:"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:364
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:374
+msgid "Day"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:66
+msgid "Days."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:471
+msgid "Degraded"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:66
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:35
+msgid "Details and history"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:77
+msgid "Distance units"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "E"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:670
+msgid "Edit"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:624
+msgid "Edit %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:673
+msgid "Find on CellMapper"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:77
+msgid "For the distance to named towers."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:642
+msgid "Forget"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:12
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:232
+msgid "Gateway"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:27
+msgid "Gateway address"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:233
+msgid "Gateway uptime"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:600
+msgid "Give the tower a name."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:366
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:376
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:388
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:399
+msgid "Good"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:486
+msgid "Good samples by hour"
+msgstr ""
+
+#: root/usr/share/rpcd/acl.d/luci-app-tmog4ar.json:3
+msgid ""
+"Grant access to the tmog4ar cellular gateway status, history and settings"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:24
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:13
+msgid "Health"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:14
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:545
+msgid "History"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:61
+msgid "History directory"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:465
+msgid ""
+"History logging is off, so a passing handover looks the same as a stuck "
+"gateway."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:364
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:374
+msgid "Hour"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:30
+msgid ""
+"How clearly the signal stands out from interference. This matters most for "
+"speed: 13 or higher is good, 20 or higher is excellent, below 0 is poor."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:27
+msgid ""
+"How much radio spectrum the connection uses, like lanes on a highway: wider "
+"means more capacity. %d MHz or more is good."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:231
+msgid "IPv6"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:43
+msgid "Is the tmog4ar service running?"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:66
+msgid "Keep history for"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:79
+msgid "Kilometres"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:407
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:238
+msgid "LTE"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:90
+msgid "LTE (eNB)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:100
+msgid "Latitude"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:262
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:458
+msgid "Loading history…"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:634
+msgid "Location"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:220
+msgid "Logged in"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:222
+msgid "Login failed: check the password in Settings"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:104
+msgid "Longitude"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:154
+msgid "MHz"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:50
+msgid ""
+"MHz. A preferred band narrower than this counts as unhealthy (only known "
+"with the admin password)."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:669
+msgid "Map"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:78
+msgid "Miles"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:56
+msgid ""
+"Minutes of unhealthy samples before a reboot is recommended. Shorter drops "
+"are normal handovers."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:72
+msgid ""
+"Minutes. Samples wait in RAM in between, which saves flash wear; a power cut "
+"loses at most this much. 0 writes every sample."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:229
+msgid "Mode"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:365
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:375
+msgid "Mostly on"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "N"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "NE"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "NW"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:630
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:97
+msgid "Name"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:624
+msgid "Name %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:673
+msgid "Name it…"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:83
+msgid ""
+"Names for the towers the gateway uses, so the status page and history say "
+"\"Water tower\" rather than a gNB number. With a location you also get the "
+"distance and direction from the gateway and a map link. The easiest way to "
+"add one is \"Name it…\" next to the tower on the status page."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:49
+msgid "Narrowest healthy channel"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:213
+msgid "Needs the admin password (Settings)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:88
+msgid "Network"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:438
+msgid "No band or tower changes in this period."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:43
+msgid "No data"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:467
+msgid "No good samples in the past 7 days, so a reboot probably won't help."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:107
+msgid "No history in the last 6 hours"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:463
+msgid ""
+"No history in this period yet. The tmog4ar service logs a sample a minute."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:221
+msgid "No password set (Settings): no channel width, PCI, ARFCN or CQI"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:191
+msgid ""
+"No sample yet. The tmog4ar service takes one a minute; check that it is "
+"running (System > Startup)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:420
+msgid "No samples for %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:409
+msgid "No signal"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:459
+msgid "Not on a preferred band."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:445
+msgid "OK"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:59
+msgid "OK · SINR %s dB"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:445
+msgid "On %s."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:626
+msgid ""
+"On CellMapper, click the tower labelled %s and copy the page's link (the map "
+"centres on the tower). Or long-press the spot in Apple Maps and copy its "
+"coordinates."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:46
+msgid "One band name, letters and digits only"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:62
+msgid "One file per day. Only the default is kept across sysupgrade."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:627
+msgid "Open CellMapper"
+msgstr ""
+
+#: root/usr/share/luci/menu.d/luci-app-tmog4ar.json:16
+msgid "Overview"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:167
+msgid "PCI"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:604
+msgid ""
+"Paste a CellMapper or map link, or latitude, longitude (e.g. 47.6101, "
+"-122.2015)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:42
+msgid "Preferred bands"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:178
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:316
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:322
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:367
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:377
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:389
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:400
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:483
+msgid "RSRP"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:32
+msgid "RSRP %s dBm · SINR %s dB"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:179
+msgid "RSRQ"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:170
+msgid "RSSI"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:55
+msgid "Reboot after"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:137
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:140
+msgid "Reboot failed"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:125
+msgid "Reboot gateway"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:215
+msgid "Reboot gateway…"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:469
+msgid "Reboot if this lasts past %dm."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:456
+msgid "Reboot recommended"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:135
+msgid "Reboot requested. The gateway usually takes a few minutes to come back."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:116
+msgid "Reboot the gateway?"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:209
+msgid "Refresh"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:228
+msgid "Registration"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:37
+msgid "Request timeout"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "S"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "SE"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:105
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:180
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:317
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:323
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:390
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:401
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:482
+msgid "SINR"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:368
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:378
+msgid "SINR avg / min"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:101
+msgid "SINR over the last 6 hours"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/dashboard/include/25_tmog4ar.js:95
+msgid "SINR, dB · 5 minute average"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "SW"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:645
+msgid "Save"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:37
+msgid "Seconds."
+msgstr ""
+
+#: root/usr/share/luci/menu.d/luci-app-tmog4ar.json:25
+msgid "Settings"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:8
+msgid ""
+"Settings for tmog4ar, which samples the T-Mobile TMO-G4AR gateway once a "
+"minute. Saving restarts the sampler."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:314
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:320
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:387
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:398
+msgid "Share"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:444
+msgid "Show all %d"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:32
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:478
+msgid "Signal"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:29
+msgid ""
+"Signal quality: how much of what the gateway hears is the tower, rather than "
+"noise and other people's traffic. -10 or higher is good, below -15 is poor."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:28
+msgid ""
+"Signal strength: how loud the tower is by the time it reaches you. Closer to "
+"zero is stronger; -90 or higher is good, below -105 is poor."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:637
+msgid ""
+"The CellMapper link, an Apple or Google Maps link, or latitude, longitude. "
+"Optional; with it you get the distance, direction and a map link."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:541
+msgid ""
+"The T-Mobile gateway's band, channel width and signal, as sampled once a "
+"minute by tmog4ar. A sample is good when the gateway is on a preferred band "
+"and wide enough; a reboot is recommended once it has been bad for a while."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:35
+msgid "The channel number, which pins down the exact radio frequency."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:448
+msgid "The gateway did not answer."
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:454
+msgid ""
+"The gateway restarted %s ago and came back degraded; the %s cell may be down."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:36
+msgid ""
+"The gateway's 0 to 15 rating of the connection, sent to the tower so it can "
+"pick a speed. 15 is best."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:19
+msgid ""
+"The gateway's admin password. Needed for channel width, PCI, ARFCN, CQI and "
+"reboot; band and signal work without it. After a failed login with a "
+"password, tmog4ar waits 15 minutes before trying that same password again, "
+"so the gateway doesn't lock it out."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:31
+msgid "The gateway's own 0 to 4 summary, like the bars on a phone."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:117
+msgid ""
+"The internet connection drops for a few minutes while the gateway restarts."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:23
+msgid "The name of the T-Mobile data service the gateway connects through."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:32
+msgid "The tower's ID number (gNB for 5G, eNB for LTE)."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:315
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:321
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:430
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:435
+msgid "Time"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:495
+msgid "Time on each band"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:498
+msgid "Time on each tower"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:25
+msgid "Time since the gateway last restarted."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:26
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:386
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:397
+msgid "Tower"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:93
+msgid "Tower ID"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:82
+msgid "Towers"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:448
+msgid "Unreachable"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:33
+msgid "Updated"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:204
+msgid "Updated %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:537
+msgid "W"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:21
+msgid "Whether the gateway is signed in to T-Mobile's network."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:24
+msgid "Whether the network gave the gateway an IPv6 address."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:26
+msgid "Whether tmog4ar can log in to the gateway to read the detailed numbers."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:33
+msgid ""
+"Which antenna on the tower is serving you. Towers usually have several, each "
+"facing a different direction."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:38
+msgid "Which of the gateway's antennas is in use."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:71
+msgid "Write to flash every"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:179
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:180
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:482
+msgid "dB"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:170
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:178
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:483
+msgid "dBm"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:590
+msgid "e.g. Water tower"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:518
+#: htdocs/luci-static/resources/tmog4ar.js:593
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:165
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:393
+msgid "eNB"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:491
+msgid "fair"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:518
+#: htdocs/luci-static/resources/tmog4ar.js:593
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:165
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:393
+msgid "gNB"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:491
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:296
+msgid "good"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:306
+msgid "history starts %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:539
+msgid "km"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:479
+msgid "line: average per %s; shaded: min to max; dashed: good and fair levels"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:302
+msgid "longest bad stretch %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:539
+msgid "mi"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:484
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:49
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:159
+msgid "n/a"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:158
+msgid "n/a (admin login failed)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:157
+msgid "n/a (needs the admin password, see Settings)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:231
+msgid "no"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:491
+msgid "poor"
+msgstr ""
+
+#: htdocs/luci-static/resources/tmog4ar.js:296
+msgid "tmog4ar returned no data (exit code %d)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:407
+msgid "tower %s → %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:492
+msgid "under 50%"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/status.js:231
+msgid "yes"
+msgstr ""

@@ -1,0 +1,96 @@
+name: Bug report
+description: Something in tmog4ar or its LuCI pages isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Before pasting any output below, **remove anything that could locate you**: tower numbers (gNB / eNB), cell IDs, coordinates (`gps`, `lat`, `lon`), and public IP or IPv6 addresses. Replace them with something like `1234567`. Never paste your gateway's admin password.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. A screenshot helps for anything in LuCI.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where do you see it?
+      multiple: true
+      options:
+        - LuCI, Status → Cellular
+        - LuCI, Settings
+        - LuCI, Status → Overview card
+        - LuCI, dashboard widgets
+        - Command line (tmog4ar)
+        - Installing / upgrading
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: tmog4ar version
+      description: Output of `tmog4ar version`
+      placeholder: tmog4ar 0.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: openwrt
+    attributes:
+      label: OpenWrt version and router
+      description: "`grep DISTRIB_RELEASE /etc/openwrt_release` and your router model"
+      placeholder: 25.12.6, Raspberry Pi 5
+    validations:
+      required: true
+
+  - type: input
+    id: gateway
+    attributes:
+      label: Gateway firmware
+      description: The `fw` value on the first line of `tmog4ar status` (or Status → Cellular → Gateway)
+      placeholder: TMO-G4AR 1.00.18
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - From the package repository (apk add)
+        - .apk files from Releases
+        - Raspberry Pi 5 image
+        - By hand, without the package
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser (for LuCI problems)
+      placeholder: Chrome 157 on Windows, Safari on iPad, etc
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `tmog4ar status`
+      description: Run it on the router over SSH. Remove tower numbers and cell IDs first.
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Output of `logread -e tmog4ar | tail -n 50`
+      render: text
+
+  - type: textarea
+    id: raw
+    attributes:
+      label: Raw gateway data (if asked)
+      description: |
+        Only if the numbers look wrong: `tmog4ar raw cell`. **This includes the gateway's GPS position (`gps`) and your tower numbers; remove them** before pasting.
+      render: json

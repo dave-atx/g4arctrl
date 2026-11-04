@@ -12,34 +12,50 @@
 set -eu
 umask 077
 
-VERSION=0.1.0 # keep in step with PKG_VERSION in openwrt/tmog4ar/Makefile
+VERSION=0.2.0 # keep in step with PKG_VERSION in openwrt/tmog4ar/Makefile
 
-# KEY=value lines, sourced as shell. Keep it root-owned and mode 600: it may hold
-# the admin password.
-CONF="${TMOG4AR_CONF:-/etc/tmog4ar.conf}"
-if [ -r "$CONF" ]; then
-	# shellcheck disable=SC1090
-	. "$CONF"
-fi
+# Settings live in UCI: /etc/config/tmog4ar, section "main" (see tmog4ar.config).
+# Without uci (not OpenWrt), everything takes its default.
+HAVE_UCI=0
+if command -v uci >/dev/null 2>&1; then HAVE_UCI=1; fi
+cfg() { # OPTION DEFAULT
+	local v=''
+	if [ "$HAVE_UCI" = 1 ]; then v=$(uci -q get "tmog4ar.main.$1" 2>/dev/null) || v=''; fi
+	printf '%s' "${v:-$2}"
+}
+cfg_int() { # OPTION DEFAULT
+	local v
+	v=$(cfg "$1" "$2")
+	case "$v" in '' | *[!0-9]*)
+		printf 'tmog4ar: tmog4ar.main.%s is not a whole number (%s); using %s\n' "$1" "$v" "$2" >&2
+		v=$2
+		;;
+	esac
+	printf '%s' "$v"
+}
 
-HOST="${TMOG4AR_HOST:-192.168.12.1}"
-PORT="${TMOG4AR_PORT:-8080}"
-TIMEOUT="${TMOG4AR_TIMEOUT:-10}"
-ADMIN_USER="${TMOG4AR_USER:-admin}"
-ADMIN_PASS="${TMOG4AR_PASS:-}"
-HISTORY_DIR="${TMOG4AR_HISTORY_DIR:-${HOME:-/root}/.tmog4ar}"
-FLUSH_MINUTES="${TMOG4AR_FLUSH_MINUTES:-60}"
-RETENTION_DAYS="${TMOG4AR_RETENTION_DAYS:-30}"
-PREFERRED_BANDS="${TMOG4AR_PREFERRED_BANDS:-n41}"
-MIN_BW="${TMOG4AR_MIN_BW:-40}"
-STUCK_MINUTES="${TMOG4AR_STUCK_MINUTES:-30}"
+HOST=$(cfg host 192.168.12.1)
+PORT=$(cfg_int port 8080)
+TIMEOUT=$(cfg_int timeout 10)
+ADMIN_USER=$(cfg username admin)
+ADMIN_PASS=$(cfg password '')
+HISTORY_DIR=$(cfg history_dir /root/.tmog4ar)
+FLUSH_MINUTES=$(cfg_int flush_minutes 60)
+RETENTION_DAYS=$(cfg_int retention_days 30)
+PREFERRED_BANDS=$(cfg preferred_band n41)
+MIN_BW=$(cfg_int min_bw 40)
+STUCK_MINUTES=$(cfg_int stuck_minutes 30)
+UNITS=$(cfg units imperial) # distances in mi (imperial) or km (metric)
 
 BASE="http://${HOST}:${PORT}/TMI/v1"
 RUN_DIR="${TMPDIR:-/tmp}/tmog4ar-$(id -u)"
 TOKEN_FILE="$RUN_DIR/auth-header"
 # Samples collect here (RAM on OpenWrt) and go to flash in one append per
-# TMOG4AR_FLUSH_MINUTES, to keep small writes off the SD card.
+# flush_minutes, to keep small writes off the SD card.
 BUFFER="$RUN_DIR/history.buf"
+# The newest sample and its health as JSON, rewritten by every sample. LuCI
+# reads it instead of asking the gateway.
+LATEST="$RUN_DIR/latest.json"
 LOGIN_BACKOFF=900 # after a failed login, don't try again for this long (avoid lockouts)
 GAP=900           # a gap this long between history samples breaks a "degraded since" streak
 LOOKBACK=604800   # a good sample this recent proves the preferred band is reachable here
@@ -75,6 +91,46 @@ init() {
 	TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmog4ar.XXXXXX") || die "cannot create a temp directory"
 	trap cleanup EXIT
 	trap 'exit 130' INT TERM HUP
+	load_towers
+}
+
+# ---------------------------------------------------------------------------
+# Named towers: UCI "tower" sections (radio nr|lte, id, name, lat, lon), so
+# output can say "Water tower, 1.3 mi NE" instead of a bare gNB number.
+
+# Reads `uci show` output: one tower per line as radio, id, name, lat, lon.
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_UCI_TOWERS='
+{
+	key = $1; val = substr($0, length($1) + 2)
+	n = split(key, k, ".")
+	if (n == 2) {
+		if (val == "tower" && !(k[2] in T)) { T[k[2]] = 1; ord[++no] = k[2] }
+		next
+	}
+	if (n != 3) next
+	if (val ~ /^\047.*\047$/) val = substr(val, 2, length(val) - 2)
+	gsub("\047\\\\\047\047", "\047", val)   # uci quotes a quote as quote-backslash-quote-quote
+	gsub(/\t/, " ", val)
+	V[k[2], k[3]] = val
+}
+END {
+	for (i = 1; i <= no; i++) {
+		s = ord[i]
+		if (V[s, "id"] == "") continue
+		r = V[s, "radio"]; if (r == "") r = "nr"
+		print r "\t" V[s, "id"] "\t" V[s, "name"] "\t" V[s, "lat"] "\t" V[s, "lon"]
+	}
+}
+'
+
+TOWERS=''
+load_towers() {
+	TOWERS="$TMP/towers.tsv"
+	: >"$TOWERS"
+	if [ "$HAVE_UCI" = 1 ]; then
+		uci -q show tmog4ar 2>/dev/null | awk -F= "$AWK_UCI_TOWERS" >"$TOWERS" || true
+	fi
 }
 
 # ---------------------------------------------------------------------------
@@ -91,14 +147,23 @@ http_get() {
 	fi
 }
 
+# creds_id: a fingerprint of the configured username and password, so a failed
+# login only holds back retries with those same credentials
+creds_id() {
+	printf '%s:%s' "$ADMIN_USER" "$ADMIN_PASS" | md5sum | cut -c1-32
+}
+
 # login [force] -> caches "Authorization: Bearer ..." in $TOKEN_FILE
 login() {
-	local now last resp token
+	local now last who resp token id
 	if [ -z "$ADMIN_PASS" ]; then return 1; fi
 	mkdir -p "$RUN_DIR"
 	now=$(date +%s)
-	last=$(cat "$RUN_DIR/login-failed" 2>/dev/null || echo 0)
-	if [ "${1:-}" != force ] && [ $((now - last)) -lt "$LOGIN_BACKOFF" ]; then return 1; fi
+	id=$(creds_id)
+	last=0 who=''
+	if [ -r "$RUN_DIR/login-failed" ]; then read -r last who <"$RUN_DIR/login-failed" || true; fi
+	case "$last" in '' | *[!0-9]*) last=0 ;; esac
+	if [ "${1:-}" != force ] && [ "$who" = "$id" ] && [ $((now - last)) -lt "$LOGIN_BACKOFF" ]; then return 1; fi
 
 	# Credentials go over stdin so they never show up in `ps`.
 	resp=$(jq -n --arg u "$ADMIN_USER" --arg p "$ADMIN_PASS" '{username: $u, password: $p}' |
@@ -107,8 +172,8 @@ login() {
 			--data-binary @- "$BASE/auth/login" 2>/dev/null) || true
 	token=$(printf '%s' "$resp" | jq -r '.auth.token // empty' 2>/dev/null) || token=''
 	if [ -z "$token" ]; then
-		echo "$now" >"$RUN_DIR/login-failed"
-		err "admin login failed (check TMOG4AR_USER/TMOG4AR_PASS); next attempt in $((LOGIN_BACKOFF / 60))m"
+		echo "$now $id" >"$RUN_DIR/login-failed"
+		err "admin login failed (check tmog4ar.main.username and password); not retrying these for $((LOGIN_BACKOFF / 60))m"
 		return 1
 	fi
 	rm -f "$RUN_DIR/login-failed"
@@ -167,7 +232,10 @@ def rat($s; $c; $p):
       arfcn: $c.earfcn,
       nb: ($s.gNBID // $s.eNBID // $x.gNBID // $x.eNBID),
       cid: ($s.cid // $x.cid),
-      antenna: ($s.antennaUsed // $x.antennaUsed)
+      antenna: ($s.antennaUsed // $x.antennaUsed),
+      tac: $c.tac,
+      mcc: $c.mcc,
+      mnc: $c.mnc
     }
   | with_entries(.key = $p + .key);
 ($g[0] // {}) as $g
@@ -183,6 +251,10 @@ def rat($s; $c; $p):
     uptime: $g.time.upTime,
     model: $g.device.model,
     firmware: $g.device.softwareVersion,
+    # The position the gateway reports for itself (admin only); used for the
+    # distance and direction to named towers.
+    gps_lat: ($c.gps // {}).latitude,
+    gps_lon: ($c.gps // {}).longitude,
     auth: $auth
   }
   + rat($s."5g" // {}; $c."5g" // {}; "nr_")
@@ -235,10 +307,55 @@ BEGIN {
 	FS = "\t"
 	npref = split(pref, P, /[ ,]+/)
 	prefstr = pref; gsub(/^[ ,]+|[ ,]+$/, "", prefstr); gsub(/[ ,]+/, "/", prefstr)
+	PI = atan2(0, -1)
+	if (towerfile != "") while ((getline tl < towerfile) > 0) {
+		split(tl, TW, "\t")
+		TN[TW[1] ":" TW[2]] = TW[3]; TLAT[TW[1] ":" TW[2]] = TW[4]; TLON[TW[1] ":" TW[2]] = TW[5]
+	}
 }
 $1 == "ts" { delete C; for (i = 1; i <= NF; i++) C[$i] = i; next }
 $1 !~ /^[0-9]+$/ { next }
 function f(k) { return (k in C) ? $(C[k]) : "-" }
+# The serving tower of this sample: its radio (nr|lte) in TRAD, its id returned.
+# The gateway sometimes reports the tower id with one bit missing for a few
+# minutes (seen: gNB 1234567 as 185991, bit 20) while the cell, PCI and
+# channel stay exactly the same. That is not a move: keep the previous id.
+function servtower(   t, cid, pci, arf) {
+	t = f("nr_nb"); TRAD = "nr"
+	if (t == "-") { t = f("lte_nb"); TRAD = "lte" }
+	if (t == "-") return t
+	cid = f(TRAD "_cid"); pci = f(TRAD "_pci"); arf = f(TRAD "_arfcn")
+	if (ST_id != "" && t != ST_id && TRAD == ST_rad && pci != "-" && pci == ST_pci && arf == ST_arf && cid == ST_cid && onebit(t, ST_id))
+		return ST_id
+	ST_id = t; ST_rad = TRAD; ST_cid = cid; ST_pci = pci; ST_arf = arf
+	return t
+}
+# Do two ids differ in exactly one bit?
+function onebit(x, y,   d) {
+	d = x - y; if (d < 0) d = -d
+	if (d < 1) return 0
+	while (d > 1 && d % 2 == 0) d /= 2
+	return d == 1
+}
+# "Water tower (gNB 1234567)" when named, else "gNB 1234567".
+function tlabel(rad, id,   k, l) {
+	k = rad ":" id; l = ((rad == "lte") ? "eNB " : "gNB ") id
+	return (TN[k] != "") ? TN[k] " (" l ")" : l
+}
+# Short form for change lists: the name if there is one, else the id.
+function tshort(rad, id,   k) { k = rad ":" id; return (TN[k] != "") ? TN[k] : id }
+# Distance and compass direction from (lat1, lon1) to (lat2, lon2), e.g.
+# "1.3 mi ↗ NE (42°)". units: imperial or metric.
+function distdir(lat1, lon1, lat2, lon2, units,   r1, r2, dl, a, d, y, x, b, dirs, arr, i) {
+	r1 = lat1 * PI / 180; r2 = lat2 * PI / 180; dl = (lon2 - lon1) * PI / 180
+	a = sin((r2 - r1) / 2) ^ 2 + cos(r1) * cos(r2) * sin(dl / 2) ^ 2
+	d = 2 * atan2(sqrt(a), sqrt(1 - a)) * ((units == "metric") ? 6371 : 3958.8)
+	y = sin(dl) * cos(r2); x = cos(r1) * sin(r2) - sin(r1) * cos(r2) * cos(dl)
+	b = (atan2(y, x) * 180 / PI + 360) % 360
+	split("N NE E SE S SW W NW", dirs, " "); split("↑ ↗ → ↘ ↓ ↙ ← ↖", arr, " ")
+	i = int((b + 22.5) / 45) % 8 + 1
+	return sprintf("%.1f %s %s %s (%d°)", d, (units == "metric") ? "km" : "mi", arr[i], dirs[i], b + 0.5)
+}
 # What the gateway is on, e.g. "n41 100 MHz", "n41" (width unknown), "LTE b66 20 MHz"
 function key(   nb, lb, bw, k, r) {
 	r = f("reg")
@@ -305,7 +422,7 @@ run_awk() { # PROGRAM [-v name=value...]  (reads stdin)
 	local prog="$1"
 	shift
 	awk -v pref="$PREFERRED_BANDS" -v minbw="$MIN_BW" -v gap="$GAP" -v sf="$AWK_SF" \
-		-v tzoff="$TZOFF" "$@" "$AWK_LIB$prog"
+		-v tzoff="$TZOFF" -v towerfile="$TOWERS" "$@" "$AWK_LIB$prog"
 }
 
 # ---------------------------------------------------------------------------
@@ -333,10 +450,11 @@ END {
 }
 '
 
+LOGGED=0 # set once the current sample is in the history buffer
 health_input() {
 	# Not `tail`: busybox tail -n is slow on big files; awk skips old rows quickly.
-	history_cat
-	printf '%s\n%s\n' "$HEADER" "$S_tsv"
+	history_cat $((TS - LOOKBACK))
+	if [ "$LOGGED" = 0 ]; then printf '%s\n%s\n' "$HEADER" "$S_tsv"; fi
 }
 
 # health_eval: sets H_level (ok|degraded|reboot|down) and H_msg
@@ -373,6 +491,62 @@ health_eval() {
 		H_msg="$H_msg. $hint"
 		;;
 	esac
+}
+
+# sample_json: the current sample and its health (after health_eval) as JSON.
+# This is what `status --json` prints and what LuCI reads from $LATEST.
+sample_json() {
+	jq_sample json | jq -c --arg level "$H_level" --arg since "$H_since" --arg lastgood "$H_lastgood" \
+		--arg seen "$H_seen" --arg first "$H_first" --arg why "$H_why" --arg key "$H_key" \
+		--arg err "$FETCH_ERR" --arg version "$VERSION" --arg pref "$(printf '%s' "$PREFERRED_BANDS" | tr ',' ' ')" \
+		--argjson stuck "$STUCK_MINUTES" --argjson minbw "$MIN_BW" --argjson history "$(has_history && echo true || echo false)" '
+	def num: if . == "" or . == "0" then null else tonumber end;
+	def str: if . == "" then null else . end;
+	. + {
+	  version: $version,
+	  error: ($err | str),
+	  health: {
+	    level: $level,
+	    key: $key,
+	    why: ($why | str),
+	    since: ($since | num),
+	    lastgood: ($lastgood | num),
+	    first: ($first | num),
+	    seen: ($seen == "1"),
+	    history: $history,
+	    preferred: ($pref | split(" ") | map(select(. != ""))),
+	    min_bw: $minbw,
+	    stuck_minutes: $stuck
+	  }
+	}'
+}
+
+# save_latest: atomically replace $LATEST with the current sample
+save_latest() {
+	mkdir -p "$RUN_DIR"
+	sample_json >"$LATEST.$$" && mv "$LATEST.$$" "$LATEST"
+}
+
+# latest_fresh SECS: is $LATEST younger than SECS?
+latest_fresh() {
+	local mtime
+	[ -s "$LATEST" ] || return 1
+	mtime=$(date -r "$LATEST" +%s 2>/dev/null) || return 1
+	[ $(($(date +%s) - mtime)) -lt "$1" ]
+}
+
+# tower_desc RADIO ID: "Water tower · 1.3 mi ↗ NE (42°)" for a named tower (the
+# distance needs the gateway's position, which comes with the admin login);
+# nothing when it isn't named.
+# shellcheck disable=SC2016 # awk program, not shell
+tower_desc() {
+	run_awk 'BEGIN {
+		k = rad ":" id
+		if (TN[k] == "") exit
+		o = TN[k]
+		if (TLAT[k] != "" && TLON[k] != "" && glat != "" && glon != "") o = o " · " distdir(glat, glon, TLAT[k], TLON[k], units)
+		print o
+	}' -v rad="$1" -v id="$2" -v glat="${S_gps_lat:-}" -v glon="${S_gps_lon:-}" -v units="$UNITS" </dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -433,7 +607,7 @@ metric() {
 }
 
 render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
-	local p="$1" k details why nbl
+	local p="$1" k details why nbl named
 	local bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna
 	for k in bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna; do
 		eval "$k=\${S_$p$k:-}"
@@ -445,7 +619,7 @@ render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
 		metric Width "$bw" MHz 0 100 $((MIN_BW * 2)) "$MIN_BW"
 	else
 		case "$AUTH_STATE" in
-		nocreds) why="needs admin login: set TMOG4AR_PASS" ;;
+		nocreds) why="needs admin login: set tmog4ar.main.password" ;;
 		failed) why="admin login failed" ;;
 		*) why="not reported" ;;
 		esac
@@ -457,6 +631,10 @@ render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
 	metric Bars "$bars" /4 0 4 3 2
 
 	if [ "$p" = nr_ ]; then nbl=gNB; else nbl=eNB; fi
+	if [ -n "$nb" ]; then
+		named=$(tower_desc "${p%_}" "$nb")
+		if [ -n "$named" ]; then printf '  %-6s %s\n' Tower "$named"; fi
+	fi
 	details=''
 	for k in "$nbl:$nb" "CID:$cid" "PCI:$pci" "ARFCN:$arfcn" "CQI:$cqi" "RSSI:$rssi"; do
 		if [ -n "${k#*:}" ]; then details="${details:+$details · }${k%%:*} ${k#*:}"; fi
@@ -495,19 +673,35 @@ render_status() {
 # Commands
 
 cmd_status() {
-	local json=0
-	case "${1:-}" in
-	--json) json=1 ;;
-	'') ;;
-	*) die "unknown option: $1" ;;
-	esac
+	local json=0 maxage=''
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--json) shift && json=1 ;;
+		--max-age)
+			[ $# -ge 2 ] || die "missing value for $1"
+			maxage=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	if [ -n "$maxage" ]; then
+		[ "$json" = 1 ] || die "--max-age needs --json"
+		case "$maxage" in *[!0-9]*) die "--max-age takes whole seconds" ;; esac
+		# A recent enough sample (usually the daemon's) saves a trip to the gateway.
+		if latest_fresh "$maxage"; then
+			cat "$LATEST"
+			return 0
+		fi
+	fi
 	init
 	awk_env
 	collect
+	health_eval
 	if [ "$json" = 1 ]; then
-		jq_sample json
+		save_latest
+		cat "$LATEST"
 	else
-		health_eval
 		render_status
 	fi
 	if [ -n "$FETCH_ERR" ]; then exit 1; fi
@@ -603,11 +797,16 @@ cmd_watch() {
 # History storage: one file per day on flash (history-YYYY-MM-DD.tsv, each with
 # a header line), plus the not-yet-flushed buffer in RAM.
 
-# history_cat: every sample, oldest first (awk readers re-map columns at each header)
+# history_cat [SINCE]: samples oldest first (awk readers re-map columns at each
+# header). With SINCE, skips daily files that can only hold older samples; a
+# file can start up to flush_minutes before its date, hence the extra day.
 history_cat() {
-	local f
+	local f cut=''
+	if [ -n "${1:-}" ]; then cut=$(date -d "@$(($1 - 86400))" +%Y-%m-%d 2>/dev/null) || cut=''; fi
 	for f in "$HISTORY_DIR"/history-*.tsv; do
-		if [ -f "$f" ]; then cat "$f"; fi
+		if [ ! -f "$f" ]; then continue; fi
+		if [ -n "$cut" ] && expr "${f##*/}" \< "history-$cut.tsv" >/dev/null; then continue; fi
+		cat "$f"
 	done
 	if [ -s "$BUFFER" ]; then
 		printf '%s\n' "$HEADER"
@@ -674,6 +873,7 @@ log_sample() {
 	fi
 	mkdir -p "$RUN_DIR"
 	printf '%s\n' "$S_tsv" >>"$BUFFER"
+	LOGGED=1
 	first=$(head -n 1 "$BUFFER" | cut -f1)
 	if [ $((TS - first)) -ge $((FLUSH_MINUTES * 60)) ]; then flush_history; fi
 }
@@ -693,8 +893,9 @@ daemon_stop() {
 	exit 0
 }
 
-# daemon: what the procd service runs. Samples every SECS seconds and writes the
-# RAM buffer to flash when stopped (including at shutdown).
+# daemon: what the procd service runs. Samples every SECS seconds, keeps the
+# newest sample and its health in $LATEST, and writes the RAM buffer to flash
+# when stopped (including at shutdown).
 cmd_daemon() {
 	local interval=60
 	while [ $# -gt 0 ]; do
@@ -710,9 +911,12 @@ cmd_daemon() {
 	case "$interval" in '' | *[!0-9]*) die "interval must be whole seconds" ;; esac
 	if [ "$interval" -lt 10 ]; then interval=10; fi
 	init
+	awk_env
 	trap daemon_stop INT TERM HUP
 	while :; do
 		log_sample
+		health_eval
+		save_latest || err "could not write $LATEST"
 		# Sleep in the background so a TERM is handled right away.
 		sleep "$interval" &
 		SLEEP_PID=$!
@@ -760,14 +964,22 @@ $1 + 0 < since { next }
 	if (rp != "-") { brp[b] += rp; brn[b]++ }
 	if (sn != "-") { bsn[b] += sn; bsnn[b]++; if (!(b in bmin) || sn + 0 < bmin[b]) bmin[b] = sn + 0 }
 
-	tower = f("nr_nb"); if (tower == "-") tower = f("lte_nb")
+	tower = servtower(); rad = TRAD
+	if (tower != "-") {
+		tk = rad SUBSEP tower
+		if (!(tk in tcnt)) { tord[++ntw] = tk; trad[tk] = rad; tid[tk] = tower }
+		tcnt[tk]++; if (g) tgood[tk]++
+		if (rp != "-") { trp[tk] += rp; trn[tk]++ }
+		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
+	}
 	if (n > 1) {
 		if (t - pt > gap) ev(pt, DIM "no samples for " dur(t - pt) RST)
 		moved = (tower != ptower && tower != "-" && ptower != "-")
-		if (k != pk) ev(t, paint(pk, pg) " → " paint(k, g) (moved ? DIM "  (gNB " ptower " → " tower ")" RST : ""))
-		else if (moved) ev(t, k DIM "  gNB " ptower " → " tower RST)
+		mv = "tower " tshort(prad, ptower) " → " tshort(rad, tower)
+		if (k != pk) ev(t, paint(pk, pg) " → " paint(k, g) (moved ? DIM "  (" mv ")" RST : ""))
+		else if (moved) ev(t, k DIM "  " mv RST)
 	}
-	pt = t; pk = k; pg = g; ptower = tower
+	pt = t; pk = k; pg = g; ptower = tower; prad = rad
 }
 function ev(t, s) { E[++ne] = DIM fmt(t) RST "  " s }
 function paint(k, g) { return (g ? GRN : RED) k RST }
@@ -781,6 +993,15 @@ END {
 	for (i = 1; i <= nk; i++) {
 		k = ord[i]
 		printf "  %s%-24s%s %5.1f%%  %5s  %4s\n", (kgood[k] ? GRN : RED), k, RST, 100 * cnt[k] / n, avg(krp[k], krn[k]), avg(ksn[k], ksnn[k])
+	}
+
+	if (ntw) {
+		for (i = 1; i <= ntw; i++) for (j = i + 1; j <= ntw; j++) if (tcnt[tord[j]] > tcnt[tord[i]]) { x = tord[i]; tord[i] = tord[j]; tord[j] = x }
+		printf "\n%s%-38s %6s  %5s  %5s  %4s%s\n", B, "Tower", "share", "good", "RSRP", "SINR", RST
+		for (i = 1; i <= ntw; i++) {
+			tk = tord[i]; pct = int(100 * tgood[tk] / tcnt[tk])
+			printf "  %-36s %5.1f%%  %s%4d%%%s  %5s  %4s\n", tlabel(trad[tk], tid[tk]), 100 * tcnt[tk] / n, ((pct >= 99) ? GRN : ((pct >= 90) ? YEL : RED)), pct, RST, avg(trp[tk], trn[tk]), avg(tsn[tk], tsnn[tk])
+		}
 	}
 
 	printf "\n%s%-14s  %-20s %5s  %5s  %s%s\n", B, (bucket >= 86400 ? "Day" : "Time"), "mostly on", "good", "RSRP", "SINR avg/min", RST
@@ -801,8 +1022,131 @@ END {
 }
 '
 
+# history --json: the same numbers for a UI to draw. Everything is unix time;
+# buckets start at local midnight / hour boundaries (tzoff = local - UTC).
+#   bands     time on each band, most first: key, good, samples, rsrp, sinr
+#   towers    time on each tower, most first: radio, id, samples, good, rsrp, sinr
+#   hours     per hour: t, n, good, rsrp/sinr [avg, min, max], keys {key: samples}
+#   series    per bucket: [t, n, good, rsrp [avg, min, max], sinr [avg, min, max]]
+#   segments  runs on one band: [start, end, key, good]; a gap ends a run
+#   events    band and tower changes and gaps, oldest first (the last maxev);
+#             a change of tower has nb_from / nb_to and radio_from / radio_to
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HISTORY_JSON='
+$1 + 0 < since { next }
+{
+	t = $1 + 0; n++
+	if (!t0) t0 = t
+	k = key(); g = good()
+	if (!(k in cnt)) ord[++nk] = k
+	cnt[k]++; kg[k] = g
+	rp = f("nr_rsrp"); if (rp == "-") rp = f("lte_rsrp")
+	sn = f("nr_sinr"); if (sn == "-") sn = f("lte_sinr")
+	if (rp != "-") { krp[k] += rp; krn[k]++ }
+	if (sn != "-") { ksn[k] += sn; ksnn[k]++ }
+
+	h = int((t + tzoff) / 3600) * 3600 - tzoff
+	if (!(("h" SUBSEP h) in N)) hord[++nh] = h
+	acc("h" SUBSEP h); hk[h, k]++
+	b = int((t + tzoff) / bucket) * bucket - tzoff
+	if (!(("b" SUBSEP b) in N)) bord[++nb] = b
+	acc("b" SUBSEP b)
+
+	tower = servtower(); rad = TRAD
+	if (tower != "-") {
+		tk = rad SUBSEP tower
+		if (!(tk in tcnt)) { tord[++ntw] = tk; trad[tk] = rad; tid[tk] = tower }
+		tcnt[tk]++; if (g) tgood[tk]++
+		if (rp != "-") { trp[tk] += rp; trn[tk]++ }
+		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
+	}
+	if (n == 1) seg(t)
+	else {
+		if (t - pt > gap) { se[ns] = pt + ivl; ev(pt, "gap", "", "", 0, 0, "", "", t - pt); seg(t) }
+		else if (k != pk) { se[ns] = t; seg(t) }
+		moved = (tower != ptower && tower != "-" && ptower != "-")
+		if (k != pk) ev(t, "band", pk, k, pg, g, moved ? ptower : "", moved ? tower : "", 0)
+		else if (moved) ev(t, "tower", k, k, g, g, ptower, tower, 0)
+	}
+	pt = t; pk = k; pg = g; ptower = tower; prad = rad; t1 = t
+}
+function acc(id) {
+	N[id]++; if (g) G[id]++
+	if (rp != "-") { rp += 0; RSUM[id] += rp; RCNT[id]++
+		if (!(id in RLO) || rp < RLO[id]) RLO[id] = rp
+		if (!(id in RHI) || rp > RHI[id]) RHI[id] = rp }
+	if (sn != "-") { sn += 0; SSUM[id] += sn; SCNT[id]++
+		if (!(id in SLO) || sn < SLO[id]) SLO[id] = sn
+		if (!(id in SHI) || sn > SHI[id]) SHI[id] = sn }
+}
+function seg(t) { ns++; s0[ns] = t; sk[ns] = k; sg[ns] = g }
+function js(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
+function tf(x) { return x ? "true" : "false" }
+function avg(s, c) { return c ? sprintf("%.1f", s / c) : "null" }
+function stat3(id, S, C, L, H) { return (id in C) ? sprintf("[%.1f,%s,%s]", S[id] / C[id], L[id], H[id]) : "null" }
+function ev(t, type, a, b, ga, gb, na, nbb, d,   s) {
+	s = "{\"t\":" t ",\"type\":\"" type "\""
+	if (type == "gap") s = s ",\"dur\":" d
+	else {
+		s = s ",\"from\":" js(a) ",\"to\":" js(b) ",\"from_good\":" tf(ga) ",\"to_good\":" tf(gb)
+		if (na != "") s = s ",\"nb_from\":" js(na) ",\"nb_to\":" js(nbb) ",\"radio_from\":" js(prad) ",\"radio_to\":" js(rad)
+	}
+	E[++ne] = s "}"
+}
+END {
+	if (n) se[ns] = t1 + ivl
+	printf "{\"now\":%d,\"since\":%d,\"first\":%s,\"last\":%s,\"samples\":%d,", now, since, (n ? t0 : "null"), (n ? t1 : "null"), n
+	printf "\"bucket\":%d,\"interval\":%d,\"gap\":%d,\"tzoff\":%d,\"min_bw\":%d,\"stuck_minutes\":%d,\"preferred\":[", bucket, ivl, gap, tzoff, minbw, stuck
+	sep = ""; for (i = 1; i <= npref; i++) if (P[i] != "") { printf "%s%s", sep, js(P[i]); sep = "," }
+
+	for (i = 1; i <= nk; i++) for (j = i + 1; j <= nk; j++) if (cnt[ord[j]] > cnt[ord[i]]) { x = ord[i]; ord[i] = ord[j]; ord[j] = x }
+	printf "],\"bands\":["
+	for (i = 1; i <= nk; i++) {
+		k = ord[i]
+		printf "%s{\"key\":%s,\"good\":%s,\"samples\":%d,\"rsrp\":%s,\"sinr\":%s}", (i > 1 ? "," : ""), js(k), tf(kg[k]), cnt[k], avg(krp[k], krn[k]), avg(ksn[k], ksnn[k])
+	}
+
+	printf "],\"towers\":["
+	for (i = 1; i <= ntw; i++) for (j = i + 1; j <= ntw; j++) if (tcnt[tord[j]] > tcnt[tord[i]]) { x = tord[i]; tord[i] = tord[j]; tord[j] = x }
+	for (i = 1; i <= ntw; i++) {
+		tk = tord[i]
+		printf "%s{\"radio\":%s,\"id\":%s,\"samples\":%d,\"good\":%d,\"rsrp\":%s,\"sinr\":%s}", (i > 1 ? "," : ""), js(trad[tk]), js(tid[tk]), tcnt[tk], tgood[tk], avg(trp[tk], trn[tk]), avg(tsn[tk], tsnn[tk])
+	}
+
+	printf "],\"hours\":["
+	for (i = 1; i <= nh; i++) {
+		h = hord[i]; id = "h" SUBSEP h
+		printf "%s{\"t\":%d,\"n\":%d,\"good\":%d,\"rsrp\":%s,\"sinr\":%s,\"keys\":{", (i > 1 ? "," : ""), h, N[id], G[id], stat3(id, RSUM, RCNT, RLO, RHI), stat3(id, SSUM, SCNT, SLO, SHI)
+		sep = ""; for (j = 1; j <= nk; j++) if ((h, ord[j]) in hk) { printf "%s%s:%d", sep, js(ord[j]), hk[h, ord[j]]; sep = "," }
+		printf "}}"
+	}
+
+	printf "],\"series\":["
+	for (i = 1; i <= nb; i++) {
+		b = bord[i]; id = "b" SUBSEP b
+		printf "%s[%d,%d,%d,%s,%s]", (i > 1 ? "," : ""), b, N[id], G[id], stat3(id, RSUM, RCNT, RLO, RHI), stat3(id, SSUM, SCNT, SLO, SHI)
+	}
+
+	printf "],\"segments\":["
+	for (i = 1; i <= ns; i++) printf "%s[%d,%d,%s,%s]", (i > 1 ? "," : ""), s0[i], se[i], js(sk[i]), tf(sg[i])
+
+	printf "],\"events\":["
+	for (i = (ne > maxev ? ne - maxev + 1 : 1); i <= ne; i++) printf "%s%s", (i > (ne > maxev ? ne - maxev + 1 : 1) ? "," : ""), E[i]
+	printf "]}\n"
+}
+'
+
+# json_bucket SECS: a chart bucket that gives at most ~360 points over SECS
+json_bucket() {
+	local b
+	for b in 300 600 900 1800 3600 7200 10800 21600 43200 86400; do
+		if [ $(($1 / b)) -le 360 ]; then break; fi
+	done
+	echo "$b"
+}
+
 cmd_history() {
-	local since=86400 bucket='' raw=0
+	local since=86400 bucket='' raw=0 json=0
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		-s | --since)
@@ -816,13 +1160,24 @@ cmd_history() {
 			shift 2
 			;;
 		--raw) shift && raw=1 ;;
+		--json) shift && json=1 ;;
 		*) die "unknown option: $1" ;;
 		esac
 	done
-	has_history || die "no history in $HISTORY_DIR yet (see: tmog4ar help)"
 	TS=$(date +%s)
+	init
+	if [ "$json" = 1 ]; then
+		# No history yet is an empty result here, not an error.
+		if [ -z "$bucket" ]; then bucket=$(json_bucket "$since"); fi
+		[ "$bucket" -gt 0 ] || die "bucket must be positive"
+		awk_env
+		history_cat $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" \
+			-v bucket="$bucket" -v ivl=60 -v maxev=500 -v stuck="$STUCK_MINUTES"
+		return 0
+	fi
+	has_history || die "no history in $HISTORY_DIR yet (see: tmog4ar help)"
 	if [ "$raw" = 1 ]; then
-		history_cat | awk -F '\t' -v c="$((TS - since))" '$1 == "ts" ? !h++ : $1 >= c'
+		history_cat $((TS - since)) | awk -F '\t' -v c="$((TS - since))" '$1 == "ts" ? !h++ : $1 >= c'
 		return 0
 	fi
 	if [ -z "$bucket" ]; then
@@ -830,7 +1185,7 @@ cmd_history() {
 	fi
 	[ "$bucket" -gt 0 ] || die "bucket must be positive"
 	awk_env
-	history_cat | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v bucket="$bucket" -v maxev=25 \
+	history_cat $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v bucket="$bucket" -v maxev=25 \
 		-v B="$BOLD" -v DIM="$DIM" -v RST="$RESET" -v GRN="$GREEN" -v YEL="$YELLOW" -v RED="$RED"
 }
 
@@ -841,7 +1196,7 @@ cmd_reboot() {
 	'') ;;
 	*) die "unknown option: $1" ;;
 	esac
-	[ -n "$ADMIN_PASS" ] || die "reboot needs the admin password: set TMOG4AR_PASS or put it in $CONF"
+	[ -n "$ADMIN_PASS" ] || die "reboot needs the admin password (tmog4ar.main.password)"
 	init
 	awk_env
 	collect
@@ -885,7 +1240,7 @@ cmd_raw() {
 		;;
 	cell)
 		auth_get 'network/telemetry/?get=cell' "$TMP/out.json" ||
-			die "could not read cell telemetry (needs TMOG4AR_PASS)"
+			die "could not read cell telemetry (needs tmog4ar.main.password)"
 		;;
 	*) die "raw: expected gateway or cell" ;;
 	esac
@@ -897,47 +1252,65 @@ usage() {
 Usage: tmog4ar [command] [options]
 
 Commands:
-  status [--json]      Band, channel width and signal quality (default command)
+  status [--json] [--max-age SECS]
+                       Band, channel width, signal quality and health (default
+                       command). With --max-age, a sample at most SECS old
+                       (usually the service's) is printed instead of asking
+                       the gateway again
   watch [-i SECS]      Live view, refreshed every SECS seconds (default 15, min 5)
   health               Is the gateway stuck? Exit 0 ok, 2 degraded,
                        3 reboot recommended, 1 unreachable
   daemon [-i SECS]     Record a sample every SECS seconds (default 60); this is
                        what the tmog4ar service runs. Samples are buffered in RAM
-                       and written to flash every TMOG4AR_FLUSH_MINUTES
+                       and written to flash every flush_minutes
   log                  Record one sample (for cron, if you'd rather not run the service)
   flush                Write buffered samples to flash now
   version              Print the version
-  history [-s DUR] [-b DUR] [--raw]
+  history [-s DUR] [-b DUR] [--raw | --json]
                        Time per band, quality per hour or day, and band/tower
                        changes over the last DUR (90m, 24h, 7d; default 24h)
   reboot [--force]     Reboot the gateway (asks first unless --force)
   raw [gateway|cell]   Print the gateway's raw JSON
 
-Settings (environment variables, or KEY=value lines in $CONF):
-  TMOG4AR_PASS             admin password; needed for channel width, PCI/ARFCN/CQI
-                           and reboot. Use chmod 600 on the config file.
-  TMOG4AR_USER             admin username (admin)
-  TMOG4AR_HOST             gateway address (192.168.12.1)
-  TMOG4AR_PORT             API port (8080)
-  TMOG4AR_TIMEOUT          request timeout in seconds (10)
-  TMOG4AR_HISTORY_DIR      where daily history files go (\$HOME/.tmog4ar)
-  TMOG4AR_FLUSH_MINUTES    how often buffered samples go to flash (60; 0 = every
-                           sample). A crash or power cut loses at most this much.
-  TMOG4AR_RETENTION_DAYS   days of history to keep (30)
-  TMOG4AR_PREFERRED_BANDS  bands that count as healthy (n41)
-  TMOG4AR_MIN_BW           narrowest healthy channel in MHz (40)
-  TMOG4AR_STUCK_MINUTES    minutes off the preferred band before a reboot is
-                           recommended (30)
+Settings are UCI options in /etc/config/tmog4ar, section "main":
+  password        admin password; needed for channel width, PCI/ARFCN/CQI and
+                  reboot. Keep the file mode 600.
+  username        admin username (admin)
+  host            gateway address (192.168.12.1)
+  port            API port (8080)
+  timeout         request timeout in seconds (10)
+  preferred_band  a band that counts as healthy; a list (n41)
+  min_bw          narrowest healthy channel in MHz (40)
+  stuck_minutes   minutes off the preferred band before a reboot is
+                  recommended (30)
+  history_dir     where daily history files go (/root/.tmog4ar)
+  retention_days  days of history to keep (30)
+  flush_minutes   how often buffered samples go to flash (60; 0 = every
+                  sample). A crash or power cut loses at most this much.
+  units           imperial (mi) or metric (km) for tower distances (imperial)
+
+Towers can be named, one "tower" section each, so output says "Water tower
+· 1.3 mi NE (42°)" rather than a bare gNB number (LuCI: Status > Cellular,
+or Settings > Towers):
+  uci add tmog4ar tower
+  uci set tmog4ar.@tower[-1].radio=nr          # nr = 5G gNB, lte = 4G eNB
+  uci set tmog4ar.@tower[-1].id=1234567
+  uci set tmog4ar.@tower[-1].name='Water tower'
+  uci set tmog4ar.@tower[-1].lat=47.6101 tmog4ar.@tower[-1].lon=-122.2015
+  uci commit tmog4ar
+For example:
+  uci set tmog4ar.main.password='...' && uci commit tmog4ar
 
 Health: a sample is good when the gateway is registered on a preferred band
-and, if the width is known, at least TMOG4AR_MIN_BW MHz wide. Brief drops are
-normal handovers. A reboot is recommended once samples have been bad for
-TMOG4AR_STUCK_MINUTES and a good sample was seen in the past week.
+and, if the width is known, at least min_bw MHz wide. Brief drops are normal
+handovers. A reboot is recommended once samples have been bad for
+stuck_minutes and a good sample was seen in the past week.
 
 History logging on OpenWrt: the tmog4ar service (/etc/init.d/tmog4ar) runs
 "tmog4ar daemon". It takes a sample a minute (about 3 MB a month), writes to
 flash in one append an hour, and saves the buffer when stopped or at reboot.
-After changing $CONF: /etc/init.d/tmog4ar restart
+It restarts by itself when /etc/config/tmog4ar changes and is reloaded
+(LuCI does that; from a shell: reload_config).
 EOF
 }
 
