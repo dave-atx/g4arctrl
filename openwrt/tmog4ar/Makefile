@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tmog4ar
-PKG_VERSION:=0.1.0
+PKG_VERSION:=0.2.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0
@@ -39,7 +39,7 @@ define Package/tmog4ar/description
 endef
 
 define Package/tmog4ar/conffiles
-/etc/tmog4ar.conf
+/etc/config/tmog4ar
 endef
 
 define Build/Prepare
@@ -50,11 +50,12 @@ define Build/Compile
 endef
 
 define Package/tmog4ar/install
-	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/lib/upgrade/keep.d
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/config $(1)/lib/upgrade/keep.d
 	$(INSTALL_BIN) $(REPO_DIR)/tmog4ar $(1)/usr/bin/tmog4ar
 	$(INSTALL_BIN) $(REPO_DIR)/tmog4ar.init $(1)/etc/init.d/tmog4ar
-	$(INSTALL_CONF) $(REPO_DIR)/tmog4ar.conf.example $(1)/etc/tmog4ar.conf
-	# Keep history across sysupgrade.
+	# INSTALL_CONF is mode 600: the file holds the gateway's admin password.
+	$(INSTALL_CONF) $(REPO_DIR)/tmog4ar.config $(1)/etc/config/tmog4ar
+	# Keep history across sysupgrade (the default history_dir).
 	echo /root/.tmog4ar/ > $(1)/lib/upgrade/keep.d/tmog4ar
 endef
 

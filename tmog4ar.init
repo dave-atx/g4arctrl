@@ -1,4 +1,5 @@
 #!/bin/sh /etc/rc.common
+# shellcheck disable=SC2034 # USE_PROCD, START and STOP are read by /etc/rc.common
 # tmog4ar history logger. Samples the gateway once a minute, buffers samples in
 # RAM and writes them to flash hourly. Stopping the service (including at
 # shutdown / reboot) writes the buffer out first.
@@ -10,14 +11,19 @@ STOP=10
 start_service() {
 	procd_open_instance
 	procd_set_param command /usr/bin/tmog4ar daemon
-	# Settings are only read at start; `reload` restarts if this file changed.
-	procd_set_param file /etc/tmog4ar.conf
+	# Settings are only read at start; a config reload restarts the daemon if
+	# this file changed.
+	procd_set_param file /etc/config/tmog4ar
 	# Keep retrying every 60s if it exits (e.g. jq missing after an upgrade).
 	procd_set_param respawn 3600 60 0
-	# Room for an in-flight request (TMOG4AR_TIMEOUT) to finish before the flush.
+	# Room for an in-flight request (the timeout option) to finish before the flush.
 	procd_set_param term_timeout 30
 	procd_set_param stderr 1
 	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger tmog4ar
 }
 
 # Runs before procd signals the daemon, so the flush has finished by the time
