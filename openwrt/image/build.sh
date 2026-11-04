@@ -1,6 +1,6 @@
 #!/bin/sh
-# Build a Raspberry Pi 5 OpenWrt image that includes tmog4ar and trusts the
-# tmog4ar package repository, so `apk upgrade` keeps it current.
+# Build a Raspberry Pi 5 OpenWrt image that includes tmog4ar and its LuCI app
+# and trusts the tmog4ar package repository, so `apk upgrade` keeps it current.
 #
 # Runs inside the OpenWrt Image Builder container for bcm27xx/bcm2712:
 #   docker run --rm -v "$PWD:/src:ro" -v "$PWD/image:/out" \
@@ -8,11 +8,15 @@
 #     sh /src/openwrt/image/build.sh /path/to/dir/with/apk /out
 #
 # The image is meant to be published, so it carries no configuration: set the
-# gateway password in /etc/tmog4ar.conf after flashing (sysupgrade keeps it).
+# gateway password after flashing (LuCI: Status > Cellular > Settings, or
+# uci set tmog4ar.main.password=...); sysupgrade keeps /etc/config/tmog4ar.
 
 set -eu
 
-[ $# -eq 2 ] || { echo "usage: $0 APK_DIR OUT_DIR" >&2; exit 64; }
+[ $# -eq 2 ] || {
+	echo "usage: $0 APK_DIR OUT_DIR" >&2
+	exit 64
+}
 apk_dir=$1
 out_dir=$2
 here=$(cd "$(dirname "$0")" && pwd)
@@ -22,19 +26,19 @@ cd /builder
 
 # The Image Builder indexes whatever is in packages/ alongside the official
 # feeds. That index is signed with a throwaway key that stays out of the image.
-cp "$apk_dir"/tmog4ar-*.apk packages/
+cp "$apk_dir"/tmog4ar-*.apk "$apk_dir"/luci-app-tmog4ar-*.apk packages/
 
 files=$(mktemp -d)
 mkdir -p "$files/etc/apk/keys" "$files/etc/apk/repositories.d"
 cp "$here/../tmog4ar.pem" "$files/etc/apk/keys/tmog4ar.pem"
-cat > "$files/etc/apk/repositories.d/customfeeds.list" <<EOF
+cat >"$files/etc/apk/repositories.d/customfeeds.list" <<EOF
 # add your custom package feeds here
 #
 # http://www.example.com/path/to/files/packages.adb
 $repo_url
 EOF
 
-packages="$(grep -v '^#' "$here/packages.txt" | tr '\n' ' ') tmog4ar"
+packages="$(grep -v '^#' "$here/packages.txt" | tr '\n' ' ') tmog4ar luci-app-tmog4ar"
 
 make image \
 	PROFILE=rpi-5 \

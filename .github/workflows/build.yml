@@ -18,8 +18,28 @@ env:
   OPENWRT_VERSION: 25.12.6
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The CLI and the scripts run under busybox ash on the router.
+      - name: shellcheck and shfmt
+        run: |
+          sudo apt-get install -y --no-install-recommends shfmt
+          shellcheck -s sh tmog4ar tmog4ar.init openwrt/image/build.sh
+          shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/image/build.sh
+
+      - name: eslint (LuCI views)
+        run: npx --yes eslint -c openwrt/luci-app-tmog4ar/eslint.config.mjs openwrt/luci-app-tmog4ar
+
+      - name: JSON (menu, ACL)
+        run: for f in openwrt/luci-app-tmog4ar/root/usr/share/*/*/*.json; do jq empty "$f" || exit 1; done
+
   package:
     name: package
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -30,16 +50,17 @@ jobs:
           tag=${GITHUB_REF_NAME#v}
           script=$(sed -n 's/^VERSION=\([^ ]*\).*/\1/p' tmog4ar)
           pkg=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmog4ar/Makefile)
-          echo "tag $tag, script $script, package $pkg"
-          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ]
+          luci=$(sed -n 's/^PKG_VERSION:=//p' openwrt/luci-app-tmog4ar/Makefile)
+          echo "tag $tag, script $script, package $pkg, luci-app $luci"
+          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ]
 
-      # The package is noarch, so any SDK will do.
+      # Both packages are noarch, so any SDK will do. The LuCI app is built
+      # with luci.mk, so the default feeds (which include luci) stay on.
       - name: Build with the OpenWrt SDK
         uses: openwrt/gh-action-sdk@f5813d30eeef3534b58ac7e79c5d8842b6035434 # main, 2026-08-04
         env:
           ARCH: aarch64_generic-${{ env.OPENWRT_VERSION }}
-          PACKAGES: tmog4ar
-          NO_DEFAULT_FEEDS: 1
+          PACKAGES: tmog4ar luci-app-tmog4ar
           INDEX: 1
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
 
@@ -48,6 +69,7 @@ jobs:
           mkdir repo
           cp bin/packages/aarch64_generic/action/packages.adb \
              bin/packages/aarch64_generic/action/tmog4ar-*.apk \
+             bin/packages/aarch64_generic/action/luci-app-tmog4ar-*.apk \
              openwrt/tmog4ar.pem repo/
           ls -l repo
 
@@ -63,8 +85,9 @@ jobs:
               cp /repo/tmog4ar.pem /etc/apk/keys/
               echo /repo/packages.adb >> /etc/apk/repositories.d/customfeeds.list
               apk update
-              apk add tmog4ar
-              tmog4ar version'
+              apk add tmog4ar luci-app-tmog4ar
+              tmog4ar version
+              uci -q get tmog4ar.main.host'
 
       - uses: actions/upload-artifact@v7
         with:
@@ -116,7 +139,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
-            repo/tmog4ar-*.apk repo/tmog4ar.pem \
+            repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmog4ar.pem \
             image/*.img.gz image/*.manifest image/sha256sums
 
   pages:
