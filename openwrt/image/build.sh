@@ -48,6 +48,7 @@ fetch() {
 }
 
 cd /builder
+apk=/builder/staging_dir/host/bin/apk
 
 # The Image Builder indexes whatever is in packages/ alongside the official
 # feeds. That index is signed with a throwaway key that stays out of the image.
@@ -72,11 +73,21 @@ for variant; do
 	echo "::group::$variant"
 
 	# Packages from outside the feeds: download, check, add to packages/.
+	# apk finds a local package by the file name <name>-<version>.apk, which
+	# release assets often don't use, so name it from its own metadata.
 	sed -n 's/^[[:space:]]*apk[[:space:]]\{1,\}//p' "$list" |
 		while read -r url sum; do
-			file=packages/$(basename "$url")
-			fetch "$url" "$file"
-			echo "$sum  $file" | sha256sum -c -
+			tmp=$(mktemp)
+			fetch "$url" "$tmp"
+			echo "$sum  $tmp" | sha256sum -c -
+			nv=$("$apk" adbdump "$tmp" |
+				awk '/^  name: / { n = $2 } /^  version: / { v = $2 } n && v { print n "-" v; exit }')
+			[ -n "$nv" ] || {
+				echo "::error::can't read the name and version of $url"
+				exit 1
+			}
+			mv "$tmp" "packages/$nv.apk"
+			echo "$url -> packages/$nv.apk"
 		done
 
 	make image \
@@ -96,7 +107,6 @@ sha256sum ./*.img.gz ./*.manifest | sed 's| \./| |' >sha256sums
 ls -l
 
 # Fail if an image has an older version of a package in minimum-versions.txt.
-apk=/builder/staging_dir/host/bin/apk
 bad=0
 for manifest in ./*.manifest; do
 	sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$here/minimum-versions.txt" |
