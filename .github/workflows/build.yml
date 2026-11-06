@@ -1,8 +1,10 @@
 name: build
 
-# Every push and PR builds the package and the Raspberry Pi 5 image. A v* tag
-# also publishes them: a GitHub release with the .apk and images, and the apk
-# repository on GitHub Pages.
+# Every push and PR builds the packages and the Raspberry Pi 5 images. A vX.Y.Z
+# tag also publishes them: a GitHub release with the .apk files and images, and
+# the apk repository on GitHub Pages. A vX.Y.Z-rN tag rebuilds only the images
+# (e.g. for a fix in an OpenWrt package): a release with the images, and the
+# repository on Pages stays as it is.
 
 on:
   push:
@@ -28,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmog4ar tmog4ar.init openwrt/image/build.sh
-          shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/image/build.sh
+          shellcheck -s sh tmog4ar tmog4ar.init openwrt/image/*.sh openwrt/image/image-upgrade
+          shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/image/*.sh openwrt/image/image-upgrade
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmog4ar/eslint.config.mjs openwrt/luci-app-tmog4ar
@@ -48,15 +50,27 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           tag=${GITHUB_REF_NAME#v}
+          tag=${tag%-r[0-9]*}
           script=$(sed -n 's/^VERSION=\([^ ]*\).*/\1/p' tmog4ar)
           pkg=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmog4ar/Makefile)
           luci=$(sed -n 's/^PKG_VERSION:=//p' openwrt/luci-app-tmog4ar/Makefile)
           echo "tag $tag, script $script, package $pkg, luci-app $luci"
           [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ]
 
+      # The SDK takes 5-20 minutes, so keep the built repository and skip it
+      # when nothing it's built from has changed (image-only changes, -rN
+      # rebuilds). Tags and PRs can restore what main saved.
+      - name: Restore the repository
+        id: cache
+        uses: actions/cache@v5
+        with:
+          path: repo
+          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmog4ar', 'tmog4ar.init', 'tmog4ar.config', 'openwrt/tmog4ar.pem', 'openwrt/tmog4ar/**', 'openwrt/luci-app-tmog4ar/**') }}
+
       # Both packages are noarch, so any SDK will do. The LuCI app is built
       # with luci.mk, so the default feeds (which include luci) stay on.
       - name: Build with the OpenWrt SDK
+        if: steps.cache.outputs.cache-hit != 'true'
         uses: openwrt/gh-action-sdk@f5813d30eeef3534b58ac7e79c5d8842b6035434 # main, 2026-08-04
         env:
           ARCH: aarch64_generic-${{ env.OPENWRT_VERSION }}
@@ -65,6 +79,7 @@ jobs:
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
 
       - name: Collect the repository
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           mkdir repo
           cp bin/packages/aarch64_generic/action/packages.adb \
@@ -95,7 +110,7 @@ jobs:
           path: repo/
 
   image:
-    name: rpi-5 image
+    name: rpi-5 images
     needs: package
     runs-on: ubuntu-latest
     steps:
@@ -106,17 +121,35 @@ jobs:
           name: repo
           path: repo
 
-      # The container runs as uid 1000, so the output directory must be
-      # writable by it.
+      # Packages the Image Builder downloaded last time. apk checks them
+      # against the current feed indexes and fetches only what changed. Each
+      # run saves a new cache; old ones age out.
+      - uses: actions/cache@v5
+        with:
+          path: dl
+          key: ib-dl-${{ env.OPENWRT_VERSION }}-${{ github.run_id }}
+          restore-keys: ib-dl-${{ env.OPENWRT_VERSION }}-
+
+      # One container builds every image in openwrt/image/variants/. It runs
+      # as uid 1000, so the directories it writes must be writable by it.
       - name: Build with the OpenWrt Image Builder
         run: |
-          mkdir -m 777 image
+          mkdir -p image dl
+          chmod 777 image dl
+          case $GITHUB_REF in
+            refs/tags/*) tag=$GITHUB_REF_NAME ;;
+            *) tag=dev-${GITHUB_SHA::7} ;;
+          esac
           docker run --rm -v "$PWD:/src:ro" -v "$PWD/image:/out" \
+            -v "$PWD/dl:/builder/dl" \
+            -e IMAGE_TAG="$tag" -e IMAGE_REPO="$GITHUB_REPOSITORY" \
             "ghcr.io/openwrt/imagebuilder:bcm27xx-bcm2712-$OPENWRT_VERSION" \
             sh /src/openwrt/image/build.sh /src/repo /out
-          ls -l image
 
+      # Uploaded even if the version check at the end of build.sh failed, to
+      # see what the images would have had.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: image
           path: |
@@ -131,19 +164,41 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
 
+      # The notes list each image's package changes since the previous
+      # release, then GitHub's list of merged PRs.
+      - name: Write the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts \
+            --json tagName,createdAt --jq "map(select(.tagName != \"$GITHUB_REF_NAME\")) | sort_by(.createdAt) | last | .tagName // empty")
+          mkdir prev
+          if [ -n "$prev" ]; then
+            gh release download "$prev" --repo "$GITHUB_REPOSITORY" --dir prev --pattern '*.manifest'
+          fi
+          sh openwrt/image/release-notes.sh "$prev" prev image | tee notes.md
+
+      # --latest: image-upgrade on the routers takes the latest release, and
+      # GitHub could rank v0.2.0-r1 below v0.2.0 (a semver prerelease).
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          case $GITHUB_REF_NAME in
+            *-r[0-9]*) set -- ;;
+            *) set -- repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmog4ar.pem ;;
+          esac
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
-            repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmog4ar.pem \
-            image/*.img.gz image/*.manifest image/sha256sums
+            --verify-tag --title "$GITHUB_REF_NAME" --latest \
+            --notes "$(cat notes.md)" --generate-notes \
+            "$@" image/*.img.gz image/*.manifest image/sha256sums
 
   pages:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-r')
     needs: [package, image]
     runs-on: ubuntu-latest
     permissions:

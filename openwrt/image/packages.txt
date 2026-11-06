@@ -1,6 +1,7 @@
-# Packages added to the rpi-5 profile's defaults for the Raspberry Pi 5 image.
-# Whitespace separated; lines starting with # are ignored. build.sh adds
-# tmog4ar and luci-app-tmog4ar itself. Nothing here should be private: the image is published.
+# Packages in every image, on top of the rpi-5 profile's defaults. Each image
+# adds its own from variants/<name>.txt. Whitespace separated; # starts a
+# comment; -name removes a default package. Nothing here should be private:
+# the images are published.
 luci luci-theme-footstrap luci-mod-dashboard
 luci-app-sqm luci-app-acme acme-acmesh-dnsapi
 openssh-server openssh-sftp-server

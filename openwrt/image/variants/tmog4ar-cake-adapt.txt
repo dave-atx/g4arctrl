@@ -1,0 +1,10 @@
+# The tmog4ar image plus cake-adapt (https://github.com/huydoan94/cake-adapt),
+# an adaptive SQM shaper for links whose speed changes, like 5G home internet.
+# See variants/tmog4ar.txt for the syntax.
+tmog4ar luci-app-tmog4ar
+cake-adapt luci-app-cake-adapt
+
+# cake-adapt isn't in the OpenWrt feeds. To update it, change the URLs and take
+# the sha256 from the release page (each asset shows its digest).
+apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.0/aarch64_cortex-a76_cake-adapt-1.0.0-r1.apk 4209d5fdddfc060c6eb661f0b5bf9e7f86523aaf03e2c61e3fd9014e7bdad622
+apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.0/luci-app-cake-adapt-1.0.0-r1.apk 6162aae24bc17b7cafacde886dfc6a1010c95d396c461e72595980995243d673
