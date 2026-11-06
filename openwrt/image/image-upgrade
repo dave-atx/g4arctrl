@@ -1,0 +1,159 @@
+#!/bin/sh
+# Check for and install a newer image from the g4arctrl GitHub releases.
+#
+#   image-upgrade [-v VARIANT] [check]   show what a newer release would change
+#   image-upgrade [-v VARIANT] upgrade   the same, then ask, back up and upgrade
+#
+# check exits 0 when up to date, 2 when there's something new, 1 on errors.
+#
+# The image records its repository, variant and release in /etc/g4arctrl-image.
+# A router installed some other way has no such file: give -v VARIANT
+# (tmog4ar or tmog4ar-cake-adapt) the first time.
+#
+# Before upgrading, an executable /etc/image-upgrade/pre-upgrade runs, e.g. to
+# copy a backup off the router; if it fails, nothing is upgraded. sysupgrade
+# keeps /etc/image-upgrade/.
+
+set -eu
+
+marker=/etc/g4arctrl-image
+hook=/etc/image-upgrade/pre-upgrade
+REPO=dave-atx/g4arctrl
+VARIANT=
+TAG=
+# shellcheck disable=SC1090
+[ -f "$marker" ] && . "$marker"
+
+usage() {
+	sed -n '2,15s/^# \{0,1\}//p' "$0" >&2
+	exit 1
+}
+
+die() {
+	echo "image-upgrade: $*" >&2
+	exit 1
+}
+
+while getopts v:h opt; do
+	case $opt in
+	v) VARIANT=$OPTARG ;;
+	*) usage ;;
+	esac
+done
+shift $((OPTIND - 1))
+cmd=${1:-check}
+case $cmd in check | upgrade) ;; *) usage ;; esac
+[ -n "$VARIANT" ] || die "no $marker; give the image variant with -v (tmog4ar or tmog4ar-cake-adapt)"
+
+work=/tmp/image-upgrade
+rm -rf "$work"
+mkdir -p "$work"
+
+get() {
+	curl -fsSL --retry 2 -o "$2" "$1" || die "can't download $1"
+}
+
+get "https://api.github.com/repos/$REPO/releases/latest" "$work/release.json"
+new_tag=$(jq -r .tag_name "$work/release.json")
+# OpenWrt's jq has no regex support, so match asset names with grep.
+jq -r '.assets[] | .name + " " + .browser_download_url' "$work/release.json" >"$work/assets"
+asset() {
+	grep -E "^$1 " "$work/assets" | head -n 1 | cut -d ' ' -f 2
+}
+manifest_url=$(asset "openwrt-.*-$VARIANT-bcm27xx-bcm2712-rpi-5\\.manifest")
+[ -n "$manifest_url" ] || die "$REPO $new_tag has no $VARIANT image"
+get "$manifest_url" "$work/new.manifest"
+
+# OpenWrt version: from the file name, openwrt-<version>-<variant>-...
+new_owrt=$(basename "$manifest_url" | sed "s/^openwrt-\\(.*\\)-$VARIANT-bcm27xx-.*/\\1/")
+# shellcheck disable=SC1091
+. /etc/openwrt_release
+cur_owrt=$DISTRIB_RELEASE
+
+# Installed packages as "name - version", like the manifest.
+awk '/^P:/ { p = substr($0, 3) } /^V:/ { print p " - " substr($0, 3) }' \
+	/lib/apk/db/installed | sort >"$work/installed"
+sort "$work/new.manifest" >"$work/new"
+
+echo "Image:   $REPO, $VARIANT"
+echo "Release: ${TAG:-unknown} installed, $new_tag latest"
+if [ "$cur_owrt" = "$new_owrt" ]; then
+	echo "OpenWrt: $cur_owrt (no change)"
+else
+	echo "OpenWrt: $cur_owrt -> $new_owrt"
+fi
+echo
+
+# Package differences between this router and the new image.
+changes=0
+awk -F ' - ' 'FNR == NR { old[$1] = $2; next } { new[$1] = $2 }
+	END {
+		for (p in new) if (p in old && old[p] != new[p]) print "U", p, old[p], new[p]
+		for (p in new) if (!(p in old)) print "A", p, new[p]
+		for (p in old) if (!(p in new)) print "R", p, old[p]
+	}' "$work/installed" "$work/new" | sort -k2 >"$work/diff"
+
+if grep -q '^U' "$work/diff"; then
+	echo "Updated:"
+	grep '^U' "$work/diff" | while read -r _ p old new; do
+		dir=$(apk version -t "$old" "$new" 2>/dev/null || echo '?')
+		case $dir in
+		">") note="  (older!)" ;;
+		*) note= ;;
+		esac
+		printf '  %-32s %s -> %s%s\n' "$p" "$old" "$new" "$note"
+	done
+	echo
+	changes=1
+fi
+if grep -q '^A' "$work/diff"; then
+	echo "New in the image:"
+	grep '^A' "$work/diff" | while read -r _ p v; do printf '  %-32s %s\n' "$p" "$v"; done
+	echo
+	changes=1
+fi
+if grep -q '^R' "$work/diff"; then
+	echo "Installed here but not in the image (gone after upgrading; reinstall"
+	echo "them, or add them to the image's package list):"
+	grep '^R' "$work/diff" | while read -r _ p v; do printf '  %-32s %s\n' "$p" "$v"; done
+	echo
+	changes=1
+fi
+
+if [ "$changes" = 0 ] && [ "$cur_owrt" = "$new_owrt" ] && [ "${TAG:-}" = "$new_tag" ]; then
+	echo "Up to date."
+	exit 0
+fi
+[ "$changes" = 1 ] || echo "No package changes."
+echo "Release notes: https://github.com/$REPO/releases/tag/$new_tag"
+
+[ "$cmd" = upgrade ] || exit 2
+
+# squashfs or ext4, whichever this router runs.
+if grep -q ' /rom squashfs ' /proc/mounts; then fs=squashfs; else fs=ext4; fi
+image_url=$(asset "openwrt-.*-$VARIANT-bcm27xx-bcm2712-rpi-5-$fs-sysupgrade\\.img\\.gz")
+sums_url=$(asset sha256sums)
+[ -n "$image_url" ] && [ -n "$sums_url" ] || die "$new_tag has no $fs sysupgrade image or sha256sums"
+image=$work/$(basename "$image_url")
+
+echo
+echo "sysupgrade keeps $(sysupgrade -l | wc -l) files (sysupgrade -l lists them)."
+echo "Everything else, including /tmp, is lost."
+printf 'Upgrade to %s (%s, %s)? [y/N] ' "$new_tag" "$VARIANT" "$fs"
+read -r answer </dev/tty
+case $answer in y | Y | yes) ;; *) die "not upgrading" ;; esac
+
+echo "Downloading $(basename "$image")..."
+get "$image_url" "$image"
+get "$sums_url" "$work/sha256sums"
+(cd "$work" && grep " $(basename "$image")\$" sha256sums | sha256sum -c -) ||
+	die "checksum mismatch for $image"
+
+if [ -x "$hook" ]; then
+	echo "Running $hook..."
+	"$hook" || die "$hook failed; not upgrading"
+fi
+
+sysupgrade -T "$image" || die "sysupgrade rejected $image"
+echo "Upgrading; the router reboots when it's done."
+exec sysupgrade -v "$image"

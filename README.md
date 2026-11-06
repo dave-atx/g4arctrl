@@ -152,6 +152,19 @@ Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, facto
 
 They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmog4ar` and the history. The release notes list the packages that changed since the previous release, and each image's `.manifest` lists all of them.
 
+### Upgrading
+
+The images include `image-upgrade`, which compares the router with the latest release and upgrades to it:
+
+```sh
+image-upgrade            # what the latest release would change; exit 2 if anything
+image-upgrade upgrade    # the same, then asks, downloads, checks the sha256 and runs sysupgrade
+```
+
+It lists the OpenWrt version and every package that would be updated, added or removed, including packages you installed yourself that the image doesn't have (they'd be gone after upgrading). It picks squashfs or ext4 to match the router and keeps your configuration as sysupgrade normally does. If `/etc/image-upgrade/pre-upgrade` exists and is executable, it runs first (to copy a backup somewhere, say), and a failure stops the upgrade; sysupgrade keeps that directory.
+
+On a router not installed from these images, copy the script over and give it the image you want the first time: `sh image-upgrade -v tmog4ar-cake-adapt`.
+
 The online firmware builders (firmware selector, `owut`, Attended Sysupgrade) only know about official packages, so their images can't include tmog4ar or cake-adapt. Reinstall them after upgrading with those, or upgrade with these images instead.
 
 ## Development

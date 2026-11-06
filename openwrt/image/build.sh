@@ -15,6 +15,9 @@
 # The images are meant to be published, so they carry no configuration: set
 # the gateway password after flashing (LuCI: Status > Cellular > Settings, or
 # uci set tmog4ar.main.password=...); sysupgrade keeps /etc/config/tmog4ar.
+#
+# IMAGE_TAG and IMAGE_REPO (default: dev, dave-atx/g4arctrl) go in each
+# image's /etc/g4arctrl-image, which image-upgrade reads.
 
 set -eu
 
@@ -64,6 +67,12 @@ cat >"$files/etc/apk/repositories.d/customfeeds.list" <<EOF
 $repo_url
 EOF
 
+# image-upgrade, and the hook directory it keeps across upgrades.
+mkdir -p "$files/usr/sbin" "$files/lib/upgrade/keep.d"
+cp "$here/image-upgrade" "$files/usr/sbin/image-upgrade"
+chmod 755 "$files/usr/sbin/image-upgrade"
+echo /etc/image-upgrade/ >"$files/lib/upgrade/keep.d/image-upgrade"
+
 for variant; do
 	list=$here/variants/$variant.txt
 	[ -f "$list" ] || {
@@ -71,6 +80,12 @@ for variant; do
 		exit 64
 	}
 	echo "::group::$variant"
+
+	cat >"$files/etc/g4arctrl-image" <<EOF
+REPO=${IMAGE_REPO:-dave-atx/g4arctrl}
+VARIANT=$variant
+TAG=${IMAGE_TAG:-dev}
+EOF
 
 	# Packages from outside the feeds: download, check, add to packages/.
 	# apk finds a local package by the file name <name>-<version>.apk, which

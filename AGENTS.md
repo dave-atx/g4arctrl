@@ -11,7 +11,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
   - `htdocs/luci-static/resources/tmog4ar.js`: shared module (data access, health wording, charts, towers, the CSS).
   - `view/tmog4ar/status.js`, `settings.js`: Status → Cellular. `view/status/include/35_tmog4ar.js`: the Overview card. `view/dashboard/include/25_tmog4ar.js`: dashboard widgets.
   - `root/usr/share/rpcd/acl.d/`: which commands the pages may run. `po/templates/tmog4ar.pot`: strings for translation.
-- `openwrt/image/`: the Raspberry Pi 5 image build. `packages.txt` is in every image; each file in `variants/` is one image (its name goes in the file names) with its own packages and `apk <url> <sha256>` downloads. `minimum-versions.txt` fails the build on an older package. `release-notes.sh` writes the package changes for a release. `docs/screenshots/`: the README images.
+- `openwrt/image/`: the Raspberry Pi 5 image build. `packages.txt` is in every image; each file in `variants/` is one image (its name goes in the file names) with its own packages and `apk <url> <sha256>` downloads. `minimum-versions.txt` fails the build on an older package. `release-notes.sh` writes the package changes for a release. `image-upgrade` goes in every image as `/usr/sbin/image-upgrade`, with `/etc/g4arctrl-image` (repo, variant, tag) written by `build.sh`; it runs on the router, so the busybox / jq rules below apply (asset names are matched with grep, not jq's `test`). `docs/screenshots/`: the README images.
 
 ## How the pieces talk
 
@@ -68,7 +68,7 @@ The CLI has to run on OpenWrt's busybox and jq builds, which are smaller than wh
 
 ## Versions and releases
 
-Keep three versions in step: `VERSION` in `tmog4ar`, and `PKG_VERSION` in both Makefiles. CI checks them against the tag. A `vX.Y.Z` tag builds, signs and publishes the packages to GitHub Pages and makes a release with the Pi 5 images. A `vX.Y.Z-rN` tag rebuilds only the images: CI checks `X.Y.Z` the same way, makes a release with just the images, and doesn't touch Pages.
+Keep three versions in step: `VERSION` in `tmog4ar`, and `PKG_VERSION` in both Makefiles. CI checks them against the tag. A `vX.Y.Z` tag builds, signs and publishes the packages to GitHub Pages and makes a release with the Pi 5 images. A `vX.Y.Z-rN` tag rebuilds only the images: CI checks `X.Y.Z` the same way, makes a release with just the images, and doesn't touch Pages. Releases are created with `--latest`, because `image-upgrade` follows GitHub's latest release and GitHub could otherwise rank `v0.2.0-r1` below `v0.2.0`.
 
 CI caches the built repository, keyed on the files the packages are built from, and skips the SDK when it hits. If you add a file the packages are built from outside `openwrt/tmog4ar/` and `openwrt/luci-app-tmog4ar/`, add it to the key in `build.yml`. The Image Builder's downloads are cached too; apk checks them against the current indexes, so they can't go stale.
 
