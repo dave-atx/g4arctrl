@@ -7,6 +7,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 - `tmog4ar`: the CLI, one POSIX shell script. Runs on the router under busybox ash; also dash / bash.
 - `tmog4ar.init`, `tmog4ar.config`: the procd service and the default `/etc/config/tmog4ar`.
 - `openwrt/tmog4ar/`: the package Makefile.
+- `openwrt/sdk-build.sh`: CI's package build, run in the `ghcr.io/openwrt/sdk` release container, which already holds the SDK (`openwrt/gh-action-sdk` downloads it again from the OpenWrt mirrors, and a slow mirror hung CI).
 - `openwrt/luci-app-tmog4ar/`: the LuCI app, laid out like an app in openwrt/luci and built with `luci.mk`.
   - `htdocs/luci-static/resources/tmog4ar.js`: shared module (data access, health wording, charts, towers, the CSS).
   - `view/tmog4ar/status.js`, `settings.js`: Status → Cellular. `view/status/include/35_tmog4ar.js`: the Overview card. `view/dashboard/include/25_tmog4ar.js`: dashboard widgets.
@@ -25,8 +26,8 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
 
 ```sh
-shellcheck -s sh tmog4ar tmog4ar.init openwrt/image/build.sh
-shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/image/build.sh
+shellcheck -s sh tmog4ar tmog4ar.init openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
 npx --yes eslint -c openwrt/luci-app-tmog4ar/eslint.config.mjs openwrt/luci-app-tmog4ar
 for f in openwrt/luci-app-tmog4ar/root/usr/share/*/*/*.json; do jq empty "$f"; done
 actionlint
