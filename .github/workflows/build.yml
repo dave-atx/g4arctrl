@@ -43,6 +43,9 @@ jobs:
     name: package
     needs: lint
     runs-on: ubuntu-latest
+    # The SDK download from the OpenWrt mirrors can stall with no error; a
+    # normal build takes 5-25 minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -113,6 +116,7 @@ jobs:
     name: rpi-5 images
     needs: package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
