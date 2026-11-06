@@ -1,0 +1,8 @@
+# The build fails if an image has an older version of one of these, e.g. when
+# a fix is merged in openwrt/packages but the release feed hasn't been rebuilt
+# yet. Remove a line once the release itself ships that version or newer.
+# <package> <version>
+
+# OpenSSH password authentication bypass on musl without PAM:
+# https://www.openssh.org/txt/release-10.6p2
+openssh-server 10.6_p2

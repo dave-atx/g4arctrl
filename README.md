@@ -143,11 +143,16 @@ Health  OK  on n41 100 MHz
 
 **Does anything leave my network?** No. tmog4ar talks to the gateway and nothing else. The only outside links are CellMapper and Apple Maps, and only when you click them.
 
-## Raspberry Pi 5 image
+## Raspberry Pi 5 images
 
-Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, factory or sysupgrade) built with the [Image Builder](https://openwrt.org/docs/guide-user/additional-software/imagebuilder). They include tmog4ar, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above. They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmog4ar` and the history.
+Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, factory or sysupgrade) built with the [Image Builder](https://openwrt.org/docs/guide-user/additional-software/imagebuilder), in two flavours:
 
-The online firmware builders (firmware selector, `owut`) only know about official packages, so their images can't include tmog4ar. Reinstall it after upgrading with those, or upgrade with these images instead.
+- `tmog4ar`: tmog4ar, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above.
+- `tmog4ar-cake-adapt`: the same plus [cake-adapt](https://github.com/huydoan94/cake-adapt) and its LuCI app, an adaptive SQM shaper for connections whose speed changes, like 5G home internet. cake-adapt isn't in the OpenWrt feeds, so `apk upgrade` won't update it; the next image will.
+
+They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmog4ar` and the history. The release notes list the packages that changed since the previous release, and each image's `.manifest` lists all of them.
+
+The online firmware builders (firmware selector, `owut`, Attended Sysupgrade) only know about official packages, so their images can't include tmog4ar or cake-adapt. Reinstall them after upgrading with those, or upgrade with these images instead.
 
 ## Development
 
@@ -172,7 +177,15 @@ echo "src-link tmog4ar /path/to/g4arctrl/openwrt" >> feeds.conf
 make defconfig && make package/tmog4ar/compile package/luci-app-tmog4ar/compile
 ```
 
-CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 image on every push. To release, bump `VERSION` in `tmog4ar` and `PKG_VERSION` in `openwrt/tmog4ar/Makefile` and `openwrt/luci-app-tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmog4ar` and `PKG_VERSION` in `openwrt/tmog4ar/Makefile` and `openwrt/luci-app-tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
+
+### Changing the images
+
+- [openwrt/image/packages.txt](openwrt/image/packages.txt): packages in every image.
+- [openwrt/image/variants/](openwrt/image/variants): one file per image, with its own packages, plus `apk <url> <sha256>` lines for packages that aren't in any feed. A new file is a new image.
+- [openwrt/image/minimum-versions.txt](openwrt/image/minimum-versions.txt): the build fails if an image has an older version of a package listed here. Use it when a fix is merged in openwrt/packages but the release feed hasn't been rebuilt yet.
+
+To rebuild only the images, without a new tmog4ar version (for example when an OpenWrt package gets a security fix), push a `vX.Y.Z-rN` tag on the current version: `v0.2.0-r1`, `v0.2.0-r2`. That makes a release with the images and leaves the repository on Pages alone.
 
 ## Credits
 
