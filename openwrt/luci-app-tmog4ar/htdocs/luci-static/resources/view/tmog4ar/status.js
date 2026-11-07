@@ -246,7 +246,7 @@ return view.extend({
 
 		const auth = {
 			ok: _('Logged in'),
-			nocreds: _('No password set (Settings): no channel width, PCI, ARFCN or CQI'),
+			nocreds: _('No password set (Settings; it\'s on the label on the back of the gateway): no channel width, PCI, ARFCN or CQI'),
 			failed: _('Login failed: check the password in Settings')
 		}[s.auth];
 
@@ -466,6 +466,12 @@ return view.extend({
 
 			if (e.type == 'gap')
 				what = E('span', { 'class': 'tmog4ar-muted' }, [ _('No samples for %s').format(tmog4ar.dur(e.dur)) ]);
+			else if (e.type == 'reboot')
+				what = E('span', {}, [
+					E('b', {}, [ e.source == 'auto' ? _('Automatic gateway reboot') : _('Gateway reboot') ]),
+					e.result == 'failed' ? E('span', { 'class': 'tmog4ar-poor-text' }, [ ' ', _('(failed)') ]) : '',
+					e.from ? E('span', { 'class': 'tmog4ar-muted' }, [ ' · ', _('was on %s').format(e.from) ]) : ''
+				]);
 			else if (e.type == 'tower')
 				what = E('span', {}, [ band(e.to, e.to_good), E('span', { 'class': 'tmog4ar-muted' }, [ ' · ', moved(e) ]) ]);
 			else
@@ -483,7 +489,7 @@ return view.extend({
 		const out = [ table([ _('Time'), _('Change') ], rows, 'tmog4ar-events') ];
 
 		if (!events.length)
-			return E('p', {}, [ E('em', {}, [ _('No band or tower changes in this period.') ]) ]);
+			return E('p', {}, [ E('em', {}, [ _('No band or tower changes or reboots in this period.') ]) ]);
 
 		if (events.length > shown.length)
 			out.push(E('button', {
