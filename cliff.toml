@@ -1,0 +1,50 @@
+# git-cliff config for the package release notes (tmog4ar and
+# luci-app-tmog4ar). CI runs `git-cliff --latest` for a vX.Y.Z tag and puts the
+# result above the image package tables; see AGENTS.md (Versions and releases).
+#
+# Each commit that touches the packages gives one line per "Release-note:"
+# line it has, or else its subject. "Release-note: none" leaves it out.
+
+[changelog]
+header = ""
+body = """
+{% if version %}## tmog4ar {{ version | trim_start_matches(pat="v") }}{% else %}## tmog4ar (unreleased){% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+{%- set parts = commit.message | split(pat="\nRelease-note:") %}
+{%- if parts | length > 1 %}
+{%- for part in parts | slice(start=1) %}
+- {{ part | split(pat="\n") | first | trim }}
+{%- endfor %}
+{%- else %}
+- {{ commit.message | split(pat="\n") | first | trim }}
+{%- endif %}
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = false
+filter_unconventional = false
+# vX.Y.Z only: a vX.Y.Z-rN tag rebuilds the images, not the packages.
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+# The files the packages are built from (the same list as the CI cache key).
+include_paths = [
+  "tmog4ar",
+  "tmog4ar.init",
+  "tmog4ar.config",
+  "tmog4ar.hotplug",
+  "openwrt/tmog4ar/**",
+  "openwrt/luci-app-tmog4ar/**",
+]
+filter_commits = true
+# Sections come from the subject's first word; the order is in the comments.
+commit_parsers = [
+  { message = "(?m)^Release-note: *none *$", skip = true },
+  { message = "^Merge ", skip = true },
+  { message = "^(Add|Show|Support|Let|Make)\\b", group = "<!-- 0 -->New" },
+  { message = "^(Fix|Keep|Stop|Don't|Handle)\\b", group = "<!-- 1 -->Fixed" },
+  { message = ".*", group = "<!-- 2 -->Changed" },
+]
