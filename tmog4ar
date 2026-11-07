@@ -318,16 +318,24 @@ $1 !~ /^[0-9]+$/ { next }
 function f(k) { return (k in C) ? $(C[k]) : "-" }
 # The serving tower of this sample: its radio (nr|lte) in TRAD, its id returned.
 # The gateway sometimes reports the tower id with one bit missing for a few
-# minutes (seen: gNB 1234567 as 185991, bit 20) while the cell, PCI and
-# channel stay exactly the same. That is not a move: keep the previous id.
+# minutes (seen: gNB 1234567 as 185991, bit 20) while the PCI and channel stay
+# exactly the same. That is not a move: keep the previous id. After a move it
+# can also repeat an id (and cell id) from the previous tower, one bit off,
+# for a sample or two while still on the new one. So on the same PCI and
+# channel: one bit off the current id with the same cell id holds as long as
+# it lasts (the original glitch); any other id holds for 5 samples and is then
+# taken as real (a cell moved to a new gNB id keeps its PCI and channel). An
+# id seen only once does not hold: right after a move the first sample can
+# report yet another id before the right one.
 function servtower(   t, cid, pci, arf) {
 	t = f("nr_nb"); TRAD = "nr"
 	if (t == "-") { t = f("lte_nb"); TRAD = "lte" }
 	if (t == "-") return t
 	cid = f(TRAD "_cid"); pci = f(TRAD "_pci"); arf = f(TRAD "_arfcn")
-	if (ST_id != "" && t != ST_id && TRAD == ST_rad && pci != "-" && pci == ST_pci && arf == ST_arf && cid == ST_cid && onebit(t, ST_id))
+	if (ST_id != "" && t != ST_id && TRAD == ST_rad && pci != "-" && pci == ST_pci && arf == ST_arf && ST_n > 1 && ((cid == ST_cid && onebit(t, ST_id)) || ++ST_held <= 5))
 		return ST_id
-	ST_id = t; ST_rad = TRAD; ST_cid = cid; ST_pci = pci; ST_arf = arf
+	if (t != ST_id || TRAD != ST_rad) ST_n = 0
+	ST_id = t; ST_rad = TRAD; ST_cid = cid; ST_pci = pci; ST_arf = arf; ST_held = 0; ST_n++
 	return t
 }
 # Do two ids differ in exactly one bit?
