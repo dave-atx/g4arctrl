@@ -52,7 +52,7 @@ The CLI has to run on OpenWrt's busybox and jq builds, which are smaller than wh
 
 ## Gateway quirks
 
-- The gateway sometimes reports the serving tower's ID with one bit missing for a few minutes (seen: bit 20) while the cell ID, PCI, channel and signal stay the same. `servtower()` in the awk library treats that as the previous tower. Don't "fix" it away.
+- The gateway sometimes reports the serving tower's ID with one bit missing for a few minutes (seen: bit 20) while the cell ID, PCI, channel and signal stay the same. After a move it can also repeat the previous tower's ID with that bit missing, and the previous tower's cell ID, for a sample or two (issue #4). `servtower()` in the awk library keeps the previous tower while the radio, PCI and channel are unchanged: indefinitely for the one-bit / same-cell-ID case, otherwise for up to 5 samples, after which a new ID counts as real (a cell re-homed to another gNB). An ID seen on only one sample doesn't hold: the first sample after a move can carry yet another ID. Don't "fix" it away.
 - `cell.gps` in the cell telemetry is the gateway's own position (one fix for the device, not per cell), and needs the admin login.
 - After a failed login the CLI won't retry the same username / password for 15 minutes (`login-failed` stores a hash of them). Changing the password retries right away. Keep that: repeated failed logins can lock the gateway's admin account.
 

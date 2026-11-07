@@ -139,7 +139,7 @@ Health  OK  on n41 100 MHz
 
 **What about my flash / SD card?** Samples wait in RAM and go to flash in one write an hour, one file per day, about 3 MB a month. Old days are deleted whole, so nothing on flash is rewritten. A power cut can lose up to an hour of history (Settings → History can change that).
 
-**A tower number CellMapper has never heard of.** The gateway sometimes reports the tower number with one bit missing for a few minutes. History ignores those (same cell, same channel, number off by one bit); if you see another odd one, CellMapper not knowing it is a good hint it's bogus.
+**A tower number CellMapper has never heard of.** The gateway sometimes reports the tower number with one bit missing for a few minutes. It can also briefly repeat the previous tower's number (one bit off) after moving to a new tower. History ignores both: while the PCI and channel stay the same, a new number is held back for up to 5 minutes before it counts as a tower change. If you see another odd one, CellMapper not knowing it is a good hint it's bogus.
 
 **Does anything leave my network?** No. tmog4ar talks to the gateway and nothing else. The only outside links are CellMapper and Apple Maps, and only when you click them.
 
