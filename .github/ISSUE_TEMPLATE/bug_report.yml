@@ -35,7 +35,7 @@ body:
     attributes:
       label: tmog4ar version
       description: Output of `tmog4ar version`
-      placeholder: tmog4ar 0.2.0
+      placeholder: tmog4ar 0.3.0
     validations:
       required: true
 
