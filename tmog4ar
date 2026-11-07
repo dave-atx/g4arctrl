@@ -46,6 +46,12 @@ PREFERRED_BANDS=$(cfg preferred_band n41)
 MIN_BW=$(cfg_int min_bw 40)
 STUCK_MINUTES=$(cfg_int stuck_minutes 30)
 UNITS=$(cfg units imperial) # distances in mi (imperial) or km (metric)
+AUTO_REBOOT=$(cfg_int auto_reboot 0)
+AR_START=$(cfg_int auto_reboot_start 2) # hour, router local time
+AR_END=$(cfg_int auto_reboot_end 5)     # hour, not included
+AR_IDLE_KBIT=$(cfg_int auto_reboot_idle_kbit 1000)
+AR_IDLE_MINUTES=$(cfg_int auto_reboot_idle_minutes 15)
+WAN_DEVICE=$(cfg wan_device '') # empty: the wan interface's device
 
 BASE="http://${HOST}:${PORT}/TMI/v1"
 RUN_DIR="${TMPDIR:-/tmp}/tmog4ar-$(id -u)"
@@ -59,6 +65,10 @@ LATEST="$RUN_DIR/latest.json"
 LOGIN_BACKOFF=900 # after a failed login, don't try again for this long (avoid lockouts)
 GAP=900           # a gap this long between history samples breaks a "degraded since" streak
 LOOKBACK=604800   # a good sample this recent proves the preferred band is reachable here
+AR_SPACING=72000  # at most one automatic reboot in this long (once a night)
+# Gateway reboots, one per line: ts, "reboot", auto|manual, ok|noanswer|failed,
+# the band before. On flash with the history; history output shows them.
+EVENTS="$HISTORY_DIR/events.tsv"
 
 COLS='ts reg nr_bands nr_bw nr_rsrp nr_rsrq nr_sinr nr_rssi nr_bars nr_cqi nr_pci nr_arfcn nr_nb nr_cid lte_bands lte_bw lte_rsrp lte_rsrq lte_sinr lte_rssi lte_bars lte_cqi lte_pci lte_arfcn lte_nb lte_cid uptime'
 HEADER=$(printf '%s' "$COLS" | tr ' ' '\t')
@@ -312,6 +322,20 @@ BEGIN {
 		split(tl, TW, "\t")
 		TN[TW[1] ":" TW[2]] = TW[3]; TLAT[TW[1] ":" TW[2]] = TW[4]; TLON[TW[1] ":" TW[2]] = TW[5]
 	}
+	# Gateway reboots (events.tsv), oldest first; the history readers merge them
+	# into their changes with rbnext().
+	nrb = 0; rbi = 1
+	if (eventfile != "") while ((getline el < eventfile) > 0) {
+		split(el, EL, "\t")
+		if (EL[2] == "reboot" && EL[1] ~ /^[0-9]+$/) { nrb++; RBT[nrb] = EL[1] + 0; RBS[nrb] = EL[3]; RBR[nrb] = EL[4]; RBK[nrb] = EL[5] }
+	}
+}
+# The next reboot at or before t not yet shown, skipping those before since:
+# returns its index, or 0.
+function rbnext(t) {
+	while (rbi <= nrb && RBT[rbi] < since) rbi++
+	if (rbi <= nrb && RBT[rbi] <= t) return rbi++
+	return 0
 }
 $1 == "ts" { delete C; for (i = 1; i <= NF; i++) C[$i] = i; next }
 $1 !~ /^[0-9]+$/ { next }
@@ -833,6 +857,12 @@ prune_history() {
 		case "$last" in '' | *[!0-9]*) continue ;; esac
 		if [ "$last" -lt "$cutoff" ]; then rm -f "$f"; fi
 	done
+	# The reboot log is a few lines a month; rewrite it only once it has an old one.
+	last=$(head -n 1 "$EVENTS" 2>/dev/null | cut -f1) || last=''
+	case "$last" in '' | *[!0-9]*) return 0 ;; esac
+	if [ "$last" -lt "$cutoff" ]; then
+		awk -F '\t' -v c="$cutoff" '$1 >= c' "$EVENTS" >"$EVENTS.new" && mv "$EVENTS.new" "$EVENTS"
+	fi
 }
 
 # Move the RAM buffer to today's file on flash in a single append.
@@ -885,6 +915,187 @@ cmd_log() {
 	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER")"; fi
 }
 
+# ---------------------------------------------------------------------------
+# Notifications. tmog4ar sends nothing off the router itself: it logs to syslog,
+# sends a ubus event (ubus listen tmog4ar) and runs the scripts in
+# /etc/hotplug.d/tmog4ar/ with these variables:
+#   ACTION    reboot-recommended | recovered | auto-reboot | auto-reboot-done | test
+#   MESSAGE   one line for a person to read
+#   LEVEL     health now: ok | degraded | reboot | down
+#   BAND      what the gateway is on, e.g. "n25 20 MHz"
+#   WHY       why it isn't healthy (empty when ok)
+#   DURATION  seconds: how long it has been (or was) degraded, if it applies
+
+# notify ACTION MESSAGE [DURATION]
+notify() {
+	local action="$1" msg="$2" dur="${3:-}"
+	logger -t tmog4ar "$msg" 2>/dev/null || err "$msg"
+	if command -v ubus >/dev/null 2>&1; then
+		ubus send tmog4ar "$(jq -nc --arg action "$action" --arg message "$msg" --arg level "$H_level" \
+			--arg band "$H_key" --arg why "$H_why" --arg dur "$dur" '
+			{action: $action, message: $message, level: $level, band: $band, why: $why}
+			+ (if $dur == "" then {} else {duration: ($dur | tonumber)} end)')" >/dev/null 2>&1 || true
+	fi
+	# In the background, so a slow script doesn't hold up sampling.
+	if [ -x /sbin/hotplug-call ]; then
+		ACTION="$action" MESSAGE="$msg" LEVEL="$H_level" BAND="$H_key" WHY="$H_why" DURATION="$dur" \
+			/sbin/hotplug-call tmog4ar </dev/null >/dev/null 2>&1 &
+	fi
+}
+
+# notify_check: once per bad stretch, when a reboot becomes recommended, and
+# when it recovers after that. The state is in RAM, so a daemon restart (a
+# config change) doesn't notify again.
+notify_check() {
+	local f="$RUN_DIR/notified" since
+	if [ "$H_level" = reboot ] && [ ! -f "$f" ]; then
+		echo "$H_since" >"$f"
+		notify reboot-recommended "Reboot recommended: $H_why for $(fmt_dur $((TS - H_since)))" $((TS - H_since))
+	elif [ "$H_level" = ok ] && [ -f "$f" ]; then
+		read -r since <"$f" || since=''
+		case "$since" in '' | *[!0-9]*) since=$TS ;; esac
+		rm -f "$f"
+		notify recovered "Recovered: on $H_key after $(fmt_dur $((TS - since))) degraded" $((TS - since))
+	fi
+}
+
+# event_log SOURCE RESULT: record a gateway reboot in $EVENTS
+event_log() {
+	mkdir -p "$HISTORY_DIR"
+	printf '%s\treboot\t%s\t%s\t%s\n' "$TS" "$1" "$2" "${H_key:-}" >>"$EVENTS"
+}
+
+# gw_reboot [force]: ask the gateway to restart. force retries a failed admin
+# login right away (a person asked); without it the 15 minute wait after a
+# failed login applies. Sets REBOOT_CODE (000 = no answer, which can mean it
+# is already restarting) or REBOOT_ERR.
+gw_reboot() {
+	REBOOT_CODE='' REBOOT_ERR=''
+	if [ "$AUTH_STATE" != ok ]; then login "${1:-}" || {
+		REBOOT_ERR="admin login failed"
+		return 1
+	}; fi
+	REBOOT_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+		-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	if [ "$REBOOT_CODE" = 401 ] || [ "$REBOOT_CODE" = 403 ]; then
+		login "${1:-}" || {
+			REBOOT_ERR="admin login failed"
+			return 1
+		}
+		REBOOT_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	fi
+	case "$REBOOT_CODE" in
+	2?? | 000) return 0 ;;
+	*)
+		REBOOT_ERR="HTTP $REBOOT_CODE"
+		return 1
+		;;
+	esac
+}
+
+# wan_sample: track how long the WAN has stayed under auto_reboot_idle_kbit
+# both ways, from its byte counters, one reading per sample. IDLE_SINCE is
+# when the quiet stretch began.
+WAN_DEV='' WAN_TS='' WAN_RX='' WAN_TX='' IDLE_SINCE=''
+wan_sample() {
+	local d rx tx dt kbit
+	if [ -z "$WAN_DEV" ]; then
+		WAN_DEV=$WAN_DEVICE
+		if [ -z "$WAN_DEV" ] && command -v ifstatus >/dev/null 2>&1; then
+			WAN_DEV=$(ifstatus wan 2>/dev/null | jq -r '.l3_device // .device // empty' 2>/dev/null) || WAN_DEV=''
+		fi
+	fi
+	d="/sys/class/net/$WAN_DEV/statistics"
+	if [ -z "$WAN_DEV" ] || [ ! -r "$d/rx_bytes" ] || [ ! -r "$d/tx_bytes" ]; then
+		WAN_DEV='' WAN_TS='' IDLE_SINCE=''
+		return 0
+	fi
+	read -r rx <"$d/rx_bytes"
+	read -r tx <"$d/tx_bytes"
+	dt=$((TS - ${WAN_TS:-0}))
+	if [ -n "$WAN_TS" ] && [ "$dt" -gt 0 ] && [ "$dt" -le 300 ] && [ "$rx" -ge "$WAN_RX" ] && [ "$tx" -ge "$WAN_TX" ]; then
+		kbit=$(((rx - WAN_RX > tx - WAN_TX ? rx - WAN_RX : tx - WAN_TX) * 8 / 1000 / dt))
+		if [ "$kbit" -ge "$AR_IDLE_KBIT" ]; then
+			IDLE_SINCE=$TS
+		elif [ -z "$IDLE_SINCE" ]; then
+			IDLE_SINCE=$WAN_TS
+		fi
+	else
+		IDLE_SINCE=$TS
+	fi
+	WAN_TS=$TS WAN_RX=$rx WAN_TX=$tx
+}
+
+# in_window HOUR START END: is HOUR in [START, END)? END below START wraps
+# past midnight; START = END is never.
+in_window() {
+	if [ "$2" -lt "$3" ]; then
+		[ "$1" -ge "$2" ] && [ "$1" -lt "$3" ]
+	elif [ "$2" -gt "$3" ]; then
+		[ "$1" -ge "$2" ] || [ "$1" -lt "$3" ]
+	else
+		return 1
+	fi
+}
+
+# last_auto_reboot: time of the newest automatic reboot attempt, or 0
+last_auto_reboot() {
+	if [ -f "$EVENTS" ]; then
+		awk -F '\t' '$2 == "reboot" && $3 == "auto" { t = $1 } END { print t + 0 }' "$EVENTS"
+	else
+		echo 0
+	fi
+}
+
+# auto_reboot_check: with auto_reboot on, reboot the gateway when a reboot is
+# recommended, it is inside the night window, the WAN has been quiet for
+# auto_reboot_idle_minutes and there was no automatic attempt in the past
+# AR_SPACING. Then, once the gateway is back, say how it went.
+auto_reboot_check() {
+	local f="$RUN_DIR/auto-reboot" at key dur
+	if [ -f "$f" ]; then
+		read -r at key <"$f" || at=''
+		case "$at" in '' | *[!0-9]*) at=0 ;; esac
+		dur=$((TS - at))
+		if [ "$H_level" = down ]; then
+			[ "$dur" -ge 3600 ] || return 0
+			notify auto-reboot-done "The gateway isn't back $(fmt_dur "$dur") after the automatic reboot"
+		else
+			[ "$dur" -ge 600 ] || return 0
+			if [ "$H_level" = ok ]; then
+				notify auto-reboot-done "Automatic reboot worked: on $H_key (was ${key:-unknown})"
+			else
+				notify auto-reboot-done "Still degraded after the automatic reboot: $H_why (was ${key:-unknown})" $((TS - H_since))
+			fi
+		fi
+		rm -f "$f"
+		return 0
+	fi
+	if [ "$AUTO_REBOOT" != 1 ] || [ "$H_level" != reboot ] || [ -z "$ADMIN_PASS" ]; then return 0; fi
+	in_window "$(date +%H)" "$AR_START" "$AR_END" || return 0
+	if [ -z "$IDLE_SINCE" ] || [ $((TS - IDLE_SINCE)) -lt $((AR_IDLE_MINUTES * 60)) ]; then return 0; fi
+	if [ $((TS - $(last_auto_reboot))) -lt "$AR_SPACING" ]; then return 0; fi
+	dur=$((TS - H_since))
+	notify auto-reboot "Rebooting the gateway: $H_why for $(fmt_dur "$dur"), WAN quiet for $(fmt_dur $((TS - IDLE_SINCE)))" "$dur"
+	if gw_reboot; then
+		event_log auto "$([ "$REBOOT_CODE" = 000 ] && echo noanswer || echo ok)"
+		printf '%s %s\n' "$TS" "$H_key" >"$f"
+	else
+		event_log auto failed
+		notify auto-reboot-done "Automatic reboot failed: $REBOOT_ERR" "$dur"
+	fi
+}
+
+# notify-test: send a test notification, to check hotplug scripts
+cmd_notify_test() {
+	if [ $# -gt 0 ]; then die "notify-test takes no options"; fi
+	H_level=test H_key='' H_why=''
+	notify test "tmog4ar test notification"
+	wait
+	echo "Sent: syslog (logread -e tmog4ar), ubus event tmog4ar, /etc/hotplug.d/tmog4ar/"
+}
+
 SLEEP_PID=''
 daemon_stop() {
 	if [ -n "$SLEEP_PID" ]; then kill "$SLEEP_PID" 2>/dev/null || true; fi
@@ -917,6 +1128,9 @@ cmd_daemon() {
 		log_sample
 		health_eval
 		save_latest || err "could not write $LATEST"
+		notify_check
+		wan_sample
+		auto_reboot_check
 		# Sleep in the background so a TERM is handled right away.
 		sleep "$interval" &
 		SLEEP_PID=$!
@@ -972,8 +1186,9 @@ $1 + 0 < since { next }
 		if (rp != "-") { trp[tk] += rp; trn[tk]++ }
 		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
 	}
+	if (n > 1 && t - pt > gap) ev(pt, DIM "no samples for " dur(t - pt) RST)
+	while ((r = rbnext(t))) rbev(r)
 	if (n > 1) {
-		if (t - pt > gap) ev(pt, DIM "no samples for " dur(t - pt) RST)
 		moved = (tower != ptower && tower != "-" && ptower != "-")
 		mv = "tower " tshort(prad, ptower) " → " tshort(rad, tower)
 		if (k != pk) ev(t, paint(pk, pg) " → " paint(k, g) (moved ? DIM "  (" mv ")" RST : ""))
@@ -982,9 +1197,13 @@ $1 + 0 < since { next }
 	pt = t; pk = k; pg = g; ptower = tower; prad = rad
 }
 function ev(t, s) { E[++ne] = DIM fmt(t) RST "  " s }
+function rbev(r) {
+	ev(RBT[r], YEL "gateway reboot" RST DIM "  (" ((RBS[r] == "auto") ? "automatic" : "manual") ((RBR[r] == "failed") ? ", failed" : "") ((RBK[r] != "") ? ", was on " RBK[r] : "") ")" RST)
+}
 function paint(k, g) { return (g ? GRN : RED) k RST }
 function avg(s, c) { return c ? sprintf("%.0f", s / c) : "-" }
 END {
+	while ((r = rbnext(now))) rbev(r)
 	if (!n) { print "No samples in this window. Is logging set up? (see: tmog4ar help)"; exit }
 	printf "%sHistory%s  %s → %s  ·  %d samples  ·  good = registered on %s, at least %s MHz wide\n\n", B, RST, fmt(t0), fmt(t1), n, prefstr, minbw
 
@@ -1029,8 +1248,10 @@ END {
 #   hours     per hour: t, n, good, rsrp/sinr [avg, min, max], keys {key: samples}
 #   series    per bucket: [t, n, good, rsrp [avg, min, max], sinr [avg, min, max]]
 #   segments  runs on one band: [start, end, key, good]; a gap ends a run
-#   events    band and tower changes and gaps, oldest first (the last maxev);
-#             a change of tower has nb_from / nb_to and radio_from / radio_to
+#   events    band and tower changes, gaps and gateway reboots, oldest first
+#             (the last maxev); a change of tower has nb_from / nb_to and
+#             radio_from / radio_to; a reboot (type "reboot") has source
+#             (auto|manual), result (ok|noanswer|failed) and from (the band)
 # shellcheck disable=SC2016 # awk program, not shell
 AWK_HISTORY_JSON='
 $1 + 0 < since { next }
@@ -1061,9 +1282,10 @@ $1 + 0 < since { next }
 		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
 	}
 	if (n == 1) seg(t)
-	else {
-		if (t - pt > gap) { se[ns] = pt + ivl; ev(pt, "gap", "", "", 0, 0, "", "", t - pt); seg(t) }
-		else if (k != pk) { se[ns] = t; seg(t) }
+	else if (t - pt > gap) { se[ns] = pt + ivl; ev(pt, "gap", "", "", 0, 0, "", "", t - pt); seg(t) }
+	else if (k != pk) { se[ns] = t; seg(t) }
+	while ((r = rbnext(t))) rbev(r)
+	if (n > 1) {
 		moved = (tower != ptower && tower != "-" && ptower != "-")
 		if (k != pk) ev(t, "band", pk, k, pg, g, moved ? ptower : "", moved ? tower : "", 0)
 		else if (moved) ev(t, "tower", k, k, g, g, ptower, tower, 0)
@@ -1093,7 +1315,11 @@ function ev(t, type, a, b, ga, gb, na, nbb, d,   s) {
 	}
 	E[++ne] = s "}"
 }
+function rbev(r) {
+	E[++ne] = "{\"t\":" RBT[r] ",\"type\":\"reboot\",\"source\":" js(RBS[r]) ",\"result\":" js(RBR[r]) ",\"from\":" js(RBK[r]) "}"
+}
 END {
+	while ((r = rbnext(now))) rbev(r)
 	if (n) se[ns] = t1 + ivl
 	printf "{\"now\":%d,\"since\":%d,\"first\":%s,\"last\":%s,\"samples\":%d,", now, since, (n ? t0 : "null"), (n ? t1 : "null"), n
 	printf "\"bucket\":%d,\"interval\":%d,\"gap\":%d,\"tzoff\":%d,\"min_bw\":%d,\"stuck_minutes\":%d,\"preferred\":[", bucket, ivl, gap, tzoff, minbw, stuck
@@ -1171,7 +1397,7 @@ cmd_history() {
 		if [ -z "$bucket" ]; then bucket=$(json_bucket "$since"); fi
 		[ "$bucket" -gt 0 ] || die "bucket must be positive"
 		awk_env
-		history_cat $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" \
+		history_cat $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" \
 			-v bucket="$bucket" -v ivl=60 -v maxev=500 -v stuck="$STUCK_MINUTES"
 		return 0
 	fi
@@ -1185,12 +1411,12 @@ cmd_history() {
 	fi
 	[ "$bucket" -gt 0 ] || die "bucket must be positive"
 	awk_env
-	history_cat $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v bucket="$bucket" -v maxev=25 \
+	history_cat $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" -v bucket="$bucket" -v maxev=25 \
 		-v B="$BOLD" -v DIM="$DIM" -v RST="$RESET" -v GRN="$GREEN" -v YEL="$YELLOW" -v RED="$RED"
 }
 
 cmd_reboot() {
-	local force=0 answer code
+	local force=0 answer
 	case "${1:-}" in
 	-f | --force) force=1 ;;
 	'') ;;
@@ -1215,19 +1441,16 @@ cmd_reboot() {
 			;;
 		esac
 	fi
-	if [ "$AUTH_STATE" != ok ]; then login force || die "admin login failed"; fi
-	code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
-		-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
-	if [ "$code" = 401 ] || [ "$code" = 403 ]; then
-		login force || die "admin login failed"
-		code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
-			-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	if ! gw_reboot force; then
+		event_log manual failed
+		die "reboot failed: $REBOOT_ERR"
 	fi
-	case "$code" in
-	2??) echo "Reboot requested. The gateway usually takes a few minutes to come back." ;;
-	000) die "no response to the reboot request (the gateway may already be restarting)" ;;
-	*) die "reboot failed: HTTP $code" ;;
-	esac
+	if [ "$REBOOT_CODE" = 000 ]; then
+		event_log manual noanswer
+		die "no response to the reboot request (the gateway may already be restarting)"
+	fi
+	event_log manual ok
+	echo "Reboot requested. The gateway usually takes a few minutes to come back."
 }
 
 cmd_raw() {
@@ -1270,6 +1493,7 @@ Commands:
                        Time per band, quality per hour or day, and band/tower
                        changes over the last DUR (90m, 24h, 7d; default 24h)
   reboot [--force]     Reboot the gateway (asks first unless --force)
+  notify-test          Send a test notification (see Notifications below)
   raw [gateway|cell]   Print the gateway's raw JSON
 
 Settings are UCI options in /etc/config/tmog4ar, section "main":
@@ -1288,6 +1512,17 @@ Settings are UCI options in /etc/config/tmog4ar, section "main":
   flush_minutes   how often buffered samples go to flash (60; 0 = every
                   sample). A crash or power cut loses at most this much.
   units           imperial (mi) or metric (km) for tower distances (imperial)
+  auto_reboot     1 = reboot the gateway by itself at night when a reboot is
+                  recommended (0). Needs the password. At most one attempt a
+                  night, and only while the WAN is quiet:
+  auto_reboot_start, auto_reboot_end
+                  the night window, hours in router local time; the end hour
+                  isn't included (2 and 5: 02:00 - 04:59)
+  auto_reboot_idle_kbit
+                  quiet = under this many kbit/s each way, per minute (1000)
+  auto_reboot_idle_minutes
+                  for at least this long (15)
+  wan_device      the device to measure (default: the wan interface's, e.g. eth1)
 
 Towers can be named, one "tower" section each, so output says "Water tower
 · 1.3 mi NE (42°)" rather than a bare gNB number (LuCI: Status > Cellular,
@@ -1300,6 +1535,14 @@ or Settings > Towers):
   uci commit tmog4ar
 For example:
   uci set tmog4ar.main.password='...' && uci commit tmog4ar
+
+Notifications: tmog4ar logs to syslog, sends a ubus event ("ubus listen
+tmog4ar") and runs the scripts in /etc/hotplug.d/tmog4ar/ when a reboot
+becomes recommended, when it recovers after that, and before / after an
+automatic reboot. It sends nothing off the router itself; a hotplug script
+can (curl to ntfy, a webhook, etc). Scripts get ACTION (reboot-recommended,
+recovered, auto-reboot, auto-reboot-done, test), MESSAGE, LEVEL, BAND, WHY
+and DURATION (seconds degraded). See /etc/hotplug.d/tmog4ar/50-example.
 
 Health: a sample is good when the gateway is registered on a preferred band
 and, if the width is known, at least min_bw MHz wide. Brief drops are normal
@@ -1327,6 +1570,7 @@ main() {
 	flush) cmd_flush "$@" ;;
 	history) cmd_history "$@" ;;
 	reboot) cmd_reboot "$@" ;;
+	notify-test) cmd_notify_test "$@" ;;
 	raw) cmd_raw "$@" ;;
 	help | -h | --help) usage ;;
 	*)

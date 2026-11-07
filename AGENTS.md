@@ -6,6 +6,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 
 - `tmog4ar`: the CLI, one POSIX shell script. Runs on the router under busybox ash; also dash / bash.
 - `tmog4ar.init`, `tmog4ar.config`: the procd service and the default `/etc/config/tmog4ar`.
+- `tmog4ar.hotplug`: installed as `/etc/hotplug.d/tmog4ar/50-example`, a notification hook that's all comments. Every file in that directory is sourced by `hotplug-call`, so it has to stay valid shell that does nothing.
 - `openwrt/tmog4ar/`: the package Makefile.
 - `openwrt/sdk-build.sh`: CI's package build, run in the `ghcr.io/openwrt/sdk` release container, which already holds the SDK (`openwrt/gh-action-sdk` downloads it again from the OpenWrt mirrors, and a slow mirror hung CI).
 - `openwrt/luci-app-tmog4ar/`: the LuCI app, laid out like an app in openwrt/luci and built with `luci.mk`.
@@ -19,6 +20,9 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 - The service runs `tmog4ar daemon`: one sample a minute, buffered in RAM (`/tmp/tmog4ar-0/history.buf`), written to `history_dir` (default `/root/.tmog4ar/`, one TSV file per day) every `flush_minutes`. Each sample, with its health, is also written to `/tmp/tmog4ar-0/latest.json`.
 - LuCI never talks to the gateway itself. It reads `latest.json`, and runs `tmog4ar status --json --max-age 15` (Refresh), `tmog4ar history --json -s N` and `tmog4ar reboot --force` through rpcd's `file.exec`. rpcd matches the ACL against the full command line, so a new CLI flag the UI needs means an ACL change too.
 - There's no ucode rpcd plugin on purpose: those run in rpcd's main loop, and a history or reboot call can take seconds. `file.exec` is asynchronous.
+- The daemon also sends notifications (`notify()`): syslog, a ubus event and `hotplug-call tmog4ar`. It never sends anything off the router itself; that's left to hook scripts. "Notified" and pending-auto-reboot state lives in `/tmp/tmog4ar-0/` (`notified`, `auto-reboot`), so a daemon restart doesn't notify twice.
+- Gateway reboots (automatic and manual) are appended to `history_dir/events.tsv` (ts, `reboot`, auto|manual, ok|noanswer|failed, band). It's on flash, but it's a few lines a month. The history readers merge it into their changes with `rbnext()`. The once-a-night limit for automatic reboots comes from it, so it survives a router reboot.
+- The auto-reboot idle check reads the WAN device's byte counters in `/sys/class/net/*/statistics` once a sample. Don't run an automatic reboot path with `login force`: the 15 minute wait after a failed login (see Gateway quirks) applies to it.
 - Settings are UCI only (`/etc/config/tmog4ar`, section `main`, plus anonymous `tower` sections). There are no environment variable overrides. The init script has a reload trigger, so a config change (from LuCI or `reload_config`) restarts the daemon.
 
 ## Linting
@@ -26,8 +30,8 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
 
 ```sh
-shellcheck -s sh tmog4ar tmog4ar.init openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
-shfmt -ln posix -d tmog4ar tmog4ar.init openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shellcheck -s sh tmog4ar tmog4ar.init tmog4ar.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shfmt -ln posix -d tmog4ar tmog4ar.init tmog4ar.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
 npx --yes eslint -c openwrt/luci-app-tmog4ar/eslint.config.mjs openwrt/luci-app-tmog4ar
 for f in openwrt/luci-app-tmog4ar/root/usr/share/*/*/*.json; do jq empty "$f"; done
 actionlint

@@ -24,7 +24,7 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
 
 - **OpenWrt 25.12 or newer.** The packages are `.apk` files, which is the package format from 25.12 on; 24.10 and older use opkg and I don't build for them. Any router model works (the packages are architecture-independent).
 - The router's WAN port plugged into one of the gateway's LAN ports, so the router can reach the gateway at `192.168.12.1`. That's the normal setup. If your gateway uses a different address, you can change it in Settings.
-- The gateway's **admin password** (the one for its web page at `http://192.168.12.1`). Without it you still get the band, signal and history, but not the channel width, PCI / channel / CQI, or the reboot button.
+- The gateway's **admin password** (the one for its web page at `http://192.168.12.1`). It's printed on the label on the back of the gateway, unless you've changed it. Without it you still get the band, signal and history, but not the channel width, PCI / channel / CQI, or the reboot button.
 
 ## Install
 
@@ -44,7 +44,7 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
 
    The first line installs the key the packages are signed with (it should match [openwrt/tmog4ar.pem](openwrt/tmog4ar.pem)). The install pulls in `curl` and `jq` and starts the `tmog4ar` service, which takes a sample once a minute. On a router without LuCI, leave out `luci-app-tmog4ar`.
 
-3. **Set the gateway's admin password.** In LuCI, go to **Status → Cellular → Settings**, enter it under Admin password, and click **Save & Apply**.
+3. **Set the gateway's admin password** (on the label on the back of the gateway, unless you've changed it). In LuCI, go to **Status → Cellular → Settings**, enter it under Admin password, and click **Save & Apply**.
 
 4. **Wait a minute** and reload Status → Cellular. History builds up from here: the first useful hour-by-hour picture takes a day or so.
 
@@ -85,7 +85,27 @@ A sample is **good** when the gateway is registered on a preferred band (n41 by 
 - **Reboot recommended** once samples have been bad for 30 minutes straight and a good one was seen in the past week. The week rule keeps it from recommending reboots when the n41 site itself is down.
 - **Unreachable** when the gateway doesn't answer.
 
-The preferred bands, minimum width and 30 minutes are all in Settings → Health. tmog4ar never reboots the gateway by itself; the reboot button asks first.
+The preferred bands, minimum width and 30 minutes are all in Settings → Health. Unless you turn on the automatic reboot below, tmog4ar never reboots the gateway by itself; the reboot button asks first.
+
+### Automatic reboot at night
+
+Settings → Automatic reboot (off by default; needs the admin password). With it on, tmog4ar reboots the gateway by itself when a reboot is recommended, but only:
+
+- between 02:00 and 05:00 router time,
+- once the internet connection has been quiet (under 1 Mbit/s both ways, each minute) for 15 minutes, so nobody's in the middle of something,
+- at most once a night. If it's still degraded afterwards, it tries again the next night.
+
+The router can't see who's home, so "quiet" means the traffic on its WAN port (`eth1` on a Pi 5). A big download or a backup running all night keeps it from rebooting that night. All of these are settings. Reboots, automatic or from the button, show up in the history's changes.
+
+### Notifications
+
+tmog4ar sends nothing off the router itself. When a reboot becomes recommended, when the connection recovers after that, and before and after an automatic reboot, it:
+
+- writes a line to the system log (`logread -e tmog4ar`; forward it with the router's remote syslog setting),
+- sends a ubus event (`ubus listen tmog4ar`),
+- runs the scripts in `/etc/hotplug.d/tmog4ar/`, with `ACTION`, `MESSAGE`, `LEVEL`, `BAND`, `WHY` and `DURATION` set.
+
+`/etc/hotplug.d/tmog4ar/50-example` is a commented-out example that pushes to [ntfy](https://ntfy.sh) with curl; uncomment it and change the topic, or add your own script next to it. Scripts in that directory are kept across sysupgrade. `tmog4ar notify-test` sends a test. Brief drops don't notify: the first notification comes when a reboot is recommended (30 minutes by default).
 
 ### Naming towers
 
@@ -105,6 +125,7 @@ tmog4ar health               is it stuck? exit 0 ok, 2 degraded, 3 reboot recomm
 tmog4ar history [-s 7d]      time per band and tower, quality per hour / day, band and tower changes
                              (--json for the numbers behind the LuCI charts)
 tmog4ar reboot [--force]     reboot the gateway
+tmog4ar notify-test          send a test notification (syslog, ubus, hotplug scripts)
 tmog4ar raw [gateway|cell]   raw JSON from the gateway
 ```
 

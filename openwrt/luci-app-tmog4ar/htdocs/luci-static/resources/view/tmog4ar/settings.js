@@ -10,13 +10,15 @@ return view.extend({
 		const s = m.section(form.NamedSection, 'main', 'tmog4ar');
 		s.addremove = false;
 		s.tab('gateway', _('Gateway'));
-		s.tab('health', _('Health'));
+		s.tab('health', _('Health'),
+			_('Notifications: tmog4ar runs the scripts in /etc/hotplug.d/tmog4ar/ when a reboot becomes recommended, when the connection recovers, and before and after an automatic reboot. /etc/hotplug.d/tmog4ar/50-example has an example, and "tmog4ar notify-test" sends a test.'));
+		s.tab('reboot', _('Automatic reboot'));
 		s.tab('history', _('History'));
 
 		let o;
 
 		o = s.taboption('gateway', form.Value, 'password', _('Admin password'),
-			_('The gateway\'s admin password. Needed for channel width, PCI, ARFCN, CQI and reboot; band and signal work without it. After a failed login with a password, tmog4ar waits 15 minutes before trying that same password again, so the gateway doesn\'t lock it out.'));
+			_('The gateway\'s admin password: it\'s printed on the label on the back of the gateway, unless you\'ve changed it. Needed for channel width, PCI, ARFCN, CQI and reboot; band and signal work without it. After a failed login with a password, tmog4ar waits 15 minutes before trying that same password again, so the gateway doesn\'t lock it out.'));
 		o.password = true;
 		o.rmempty = true;
 
@@ -57,6 +59,53 @@ return view.extend({
 		o.datatype = 'range(1,1440)';
 		o.placeholder = '30';
 		o.rmempty = true;
+
+		o = s.taboption('reboot', form.Flag, 'auto_reboot', _('Reboot automatically'),
+			_('Reboot the gateway by itself when a reboot is recommended, at night while nobody is using the internet. At most one attempt a night. Needs the admin password.'));
+		o.rmempty = false;
+
+		const hours = [];
+		for (let h = 0; h < 24; h++)
+			hours.push([ String(h), '%02d:00'.format(h) ]);
+
+		o = s.taboption('reboot', form.ListValue, 'auto_reboot_start', _('Between'),
+			_('Router local time.'));
+		hours.forEach(h => o.value(h[0], h[1]));
+		o.default = '2';
+		o.depends('auto_reboot', '1');
+
+		o = s.taboption('reboot', form.ListValue, 'auto_reboot_end', _('And'),
+			_('The window ends at the start of this hour.'));
+		hours.forEach(h => o.value(h[0], h[1]));
+		o.default = '5';
+		o.depends('auto_reboot', '1');
+		o.validate = function(section_id, value) {
+			const start = this.section.formvalue(section_id, 'auto_reboot_start');
+			return (start == null || start != value) ? true : _('The window needs a different start and end hour');
+		};
+
+		o = s.taboption('reboot', form.Value, 'auto_reboot_idle_kbit', _('Quiet below'),
+			_('kbit/s, both download and upload, averaged over each minute. 1000 is 1 Mbit/s.'));
+		o.datatype = 'uinteger';
+		o.placeholder = '1000';
+		o.rmempty = true;
+		o.depends('auto_reboot', '1');
+
+		o = s.taboption('reboot', form.Value, 'auto_reboot_idle_minutes', _('Quiet for'),
+			_('Minutes the internet connection has to stay that quiet before rebooting.'));
+		o.datatype = 'range(1,180)';
+		o.placeholder = '15';
+		o.rmempty = true;
+		o.depends('auto_reboot', '1');
+
+		o = s.taboption('reboot', form.Value, 'wan_device', _('WAN device'),
+			_('The network device whose traffic is measured. Empty uses the wan interface\'s device.'));
+		o.placeholder = 'eth1';
+		o.validate = function(section_id, value) {
+			return (value == '' || /^[A-Za-z0-9._@-]+$/.test(value)) ? true : _('A device name, e.g. eth1');
+		};
+		o.rmempty = true;
+		o.depends('auto_reboot', '1');
 
 		o = s.taboption('history', form.Value, 'history_dir', _('History directory'),
 			_('One file per day. Only the default is kept across sysupgrade.'));

@@ -40,6 +40,7 @@ endef
 
 define Package/tmog4ar/conffiles
 /etc/config/tmog4ar
+/etc/hotplug.d/tmog4ar/50-example
 endef
 
 define Build/Prepare
@@ -50,13 +51,16 @@ define Build/Compile
 endef
 
 define Package/tmog4ar/install
-	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/config $(1)/lib/upgrade/keep.d
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/config $(1)/etc/hotplug.d/tmog4ar $(1)/lib/upgrade/keep.d
 	$(INSTALL_BIN) $(REPO_DIR)/tmog4ar $(1)/usr/bin/tmog4ar
 	$(INSTALL_BIN) $(REPO_DIR)/tmog4ar.init $(1)/etc/init.d/tmog4ar
 	# INSTALL_CONF is mode 600: the file holds the gateway's admin password.
 	$(INSTALL_CONF) $(REPO_DIR)/tmog4ar.config $(1)/etc/config/tmog4ar
-	# Keep history across sysupgrade (the default history_dir).
-	echo /root/.tmog4ar/ > $(1)/lib/upgrade/keep.d/tmog4ar
+	# Notification hooks: an example that does nothing until edited.
+	$(INSTALL_DATA) $(REPO_DIR)/tmog4ar.hotplug $(1)/etc/hotplug.d/tmog4ar/50-example
+	# Keep history (the default history_dir) and every notification hook,
+	# including ones added by hand, across sysupgrade.
+	printf '%s\n' /root/.tmog4ar/ /etc/hotplug.d/tmog4ar/ > $(1)/lib/upgrade/keep.d/tmog4ar
 endef
 
 $(eval $(call BuildPackage,tmog4ar))
