@@ -680,10 +680,6 @@ msgstr ""
 msgid "RSSI"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:57
-msgid "Reboot after"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/tmog4ar/settings.js:63
 msgid "Reboot automatically"
 msgstr ""
@@ -722,6 +718,10 @@ msgstr ""
 
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:144
 msgid "Reboot the gateway?"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:57
+msgid "Recommend reboot after"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:237

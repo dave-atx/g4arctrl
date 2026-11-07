@@ -54,7 +54,7 @@ return view.extend({
 		o.placeholder = '40';
 		o.rmempty = true;
 
-		o = s.taboption('health', form.Value, 'stuck_minutes', _('Reboot after'),
+		o = s.taboption('health', form.Value, 'stuck_minutes', _('Recommend reboot after'),
 			_('Minutes of unhealthy samples before a reboot is recommended. Shorter drops are normal handovers.'));
 		o.datatype = 'range(1,1440)';
 		o.placeholder = '30';
