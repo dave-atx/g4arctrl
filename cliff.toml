@@ -40,6 +40,12 @@ include_paths = [
   "openwrt/luci-app-tmog4ar/**",
 ]
 filter_commits = true
+# Release-note lines for commits that were merged without one. Each pattern
+# matches one commit's whole subject.
+commit_preprocessors = [
+  # 16bb766 (#5)
+  { pattern = "^(Keep the serving tower when a stale id from the previous tower shows up\n)", replace = "${1}\nRelease-note: History no longer shows fake tower changes when the gateway briefly reports the previous tower's ID after a band change (#4)\n" },
+]
 # Sections come from the subject's first word; the order is in the comments.
 commit_parsers = [
   { message = "(?m)^Release-note: *none *$", skip = true },
