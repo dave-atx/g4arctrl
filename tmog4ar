@@ -934,10 +934,21 @@ cmd_log() {
 #   WHY       why it isn't healthy (empty when ok)
 #   DURATION  seconds: how long it has been (or was) degraded, if it applies
 
+# syslog PRIORITY MESSAGE: one line to the system log (daemon facility), so
+# remote syslog can filter by severity. PRIORITY: warning | notice | info
+syslog() {
+	logger -t tmog4ar -p "daemon.$1" "$2" 2>/dev/null || err "$2"
+}
+
 # notify ACTION MESSAGE [DURATION]
 notify() {
-	local action="$1" msg="$2" dur="${3:-}"
-	logger -t tmog4ar "$msg" 2>/dev/null || err "$msg"
+	local action="$1" msg="$2" dur="${3:-}" prio=notice
+	case "$action" in
+	reboot-recommended) prio=warning ;;
+	auto-reboot-done) [ "$H_level" = ok ] || prio=warning ;;
+	test) prio=info ;;
+	esac
+	syslog "$prio" "$msg"
 	if command -v ubus >/dev/null 2>&1; then
 		ubus send tmog4ar "$(jq -nc --arg action "$action" --arg message "$msg" --arg level "$H_level" \
 			--arg band "$H_key" --arg why "$H_why" --arg dur "$dur" '
@@ -964,6 +975,24 @@ notify_check() {
 		case "$since" in '' | *[!0-9]*) since=$TS ;; esac
 		rm -f "$f"
 		notify recovered "Recovered: on $H_key after $(fmt_dur $((TS - since))) degraded" $((TS - since))
+	fi
+}
+
+# fetch_check: log when the gateway stops answering and when it is back, once
+# per stretch (not every sample). Not a notification: a gateway reboot or a
+# blip does this too, and health already covers being down for long. The
+# state is in RAM, so a daemon restart mid-outage doesn't log it again.
+fetch_check() {
+	local f="$RUN_DIR/unreachable" since
+	if [ -n "$FETCH_ERR" ]; then
+		[ -f "$f" ] && return 0
+		echo "$TS" >"$f"
+		syslog warning "No answer from the gateway: $FETCH_ERR"
+	elif [ -f "$f" ]; then
+		read -r since <"$f" || since=''
+		case "$since" in '' | *[!0-9]*) since=$TS ;; esac
+		rm -f "$f"
+		syslog notice "The gateway is answering again after $(fmt_dur $((TS - since)))"
 	fi
 }
 
@@ -1134,6 +1163,7 @@ cmd_daemon() {
 	trap daemon_stop INT TERM HUP
 	while :; do
 		log_sample
+		fetch_check
 		health_eval
 		save_latest || err "could not write $LATEST"
 		notify_check
@@ -1451,13 +1481,16 @@ cmd_reboot() {
 	fi
 	if ! gw_reboot force; then
 		event_log manual failed
+		syslog warning "Manual reboot of the gateway failed: $REBOOT_ERR"
 		die "reboot failed: $REBOOT_ERR"
 	fi
 	if [ "$REBOOT_CODE" = 000 ]; then
 		event_log manual noanswer
+		syslog notice "Manual reboot of the gateway requested, no answer (was on ${H_key:-unknown})"
 		die "no response to the reboot request (the gateway may already be restarting)"
 	fi
 	event_log manual ok
+	syslog notice "Manual reboot of the gateway requested (was on ${H_key:-unknown})"
 	echo "Reboot requested. The gateway usually takes a few minutes to come back."
 }
 
@@ -1551,6 +1584,8 @@ automatic reboot. It sends nothing off the router itself; a hotplug script
 can (curl to ntfy, a webhook, etc). Scripts get ACTION (reboot-recommended,
 recovered, auto-reboot, auto-reboot-done, test), MESSAGE, LEVEL, BAND, WHY
 and DURATION (seconds degraded). See /etc/hotplug.d/tmog4ar/50-example.
+The system log also notes the gateway not answering (and back), and manual
+reboots.
 
 Health: a sample is good when the gateway is registered on a preferred band
 and, if the width is known, at least min_bw MHz wide. Brief drops are normal
