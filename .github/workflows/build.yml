@@ -204,7 +204,15 @@ jobs:
           fi
           case $GITHUB_REF_NAME in
             *-r[0-9]*) : >notes.md ;;
-            *) git-cliff --config cliff.toml --latest --strip all >notes.md && echo >>notes.md ;;
+            *)
+              # The commits since the previous X.Y.Z tag, named after this
+              # tag. Not --latest: that loses the tag when the tagged commit
+              # doesn't touch the packages (cliff.toml include_paths).
+              since=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-r[0-9]*' "$GITHUB_REF_NAME^" 2>/dev/null) || since=''
+              git-cliff --config cliff.toml --tag "$GITHUB_REF_NAME" --strip all \
+                "${since:+$since..}$GITHUB_REF_NAME" >notes.md
+              echo >>notes.md
+              ;;
           esac
           sh openwrt/image/release-notes.sh "$prev" prev image >>notes.md
           cat notes.md
