@@ -1085,12 +1085,24 @@ last_auto_reboot() {
 	fi
 }
 
+# Why the window is passing without a reboot, and the longest quiet stretch
+# seen in it. In memory only: a daemon restart just loses the one log line.
+AR_WHY='' AR_QUIET=0
+
+# auto_reboot_skipped: after the window closes, log once why a recommended
+# reboot did not happen. Syslog only: nothing changed that needs a notification.
+auto_reboot_skipped() {
+	if [ -z "$AR_WHY" ]; then return 0; fi
+	syslog notice "No automatic reboot in the $AR_START:00-$AR_END:00 window: $AR_WHY"
+	AR_WHY='' AR_QUIET=0
+}
+
 # auto_reboot_check: with auto_reboot on, reboot the gateway when a reboot is
 # recommended, it is inside the night window, the WAN has been quiet for
 # auto_reboot_idle_minutes and there was no automatic attempt in the past
 # AR_SPACING. Then, once the gateway is back, say how it went.
 auto_reboot_check() {
-	local f="$RUN_DIR/auto-reboot" at key dur
+	local f="$RUN_DIR/auto-reboot" at key dur quiet
 	if [ -f "$f" ]; then
 		read -r at key <"$f" || at=''
 		case "$at" in '' | *[!0-9]*) at=0 ;; esac
@@ -1109,10 +1121,32 @@ auto_reboot_check() {
 		rm -f "$f"
 		return 0
 	fi
-	if [ "$AUTO_REBOOT" != 1 ] || [ "$H_level" != reboot ] || [ -z "$ADMIN_PASS" ]; then return 0; fi
-	in_window "$(date +%H)" "$AR_START" "$AR_END" || return 0
-	if [ -z "$IDLE_SINCE" ] || [ $((TS - IDLE_SINCE)) -lt $((AR_IDLE_MINUTES * 60)) ]; then return 0; fi
-	if [ $((TS - $(last_auto_reboot))) -lt "$AR_SPACING" ]; then return 0; fi
+	if [ "$AUTO_REBOOT" != 1 ]; then return 0; fi
+	if ! in_window "$(date +%H)" "$AR_START" "$AR_END"; then
+		auto_reboot_skipped
+		return 0
+	fi
+	if [ "$H_level" = ok ]; then AR_WHY='' AR_QUIET=0; fi
+	if [ "$H_level" != reboot ]; then return 0; fi
+	if [ $((TS - $(last_auto_reboot))) -lt "$AR_SPACING" ]; then
+		AR_WHY='' AR_QUIET=0
+		return 0
+	fi
+	if [ -z "$ADMIN_PASS" ]; then
+		AR_WHY="no admin password is set"
+		return 0
+	fi
+	if [ -z "$IDLE_SINCE" ]; then
+		AR_WHY="could not read the WAN traffic counters"
+		return 0
+	fi
+	quiet=$((TS - IDLE_SINCE))
+	if [ "$quiet" -lt $((AR_IDLE_MINUTES * 60)) ]; then
+		if [ "$quiet" -gt "$AR_QUIET" ]; then AR_QUIET=$quiet; fi
+		AR_WHY="the WAN was never under $AR_IDLE_KBIT kbit/s for $(fmt_dur $((AR_IDLE_MINUTES * 60))) (longest quiet stretch $(fmt_dur "$AR_QUIET"))"
+		return 0
+	fi
+	AR_WHY='' AR_QUIET=0
 	dur=$((TS - H_since))
 	notify auto-reboot "Rebooting the gateway: $H_why for $(fmt_dur "$dur"), WAN quiet for $(fmt_dur $((TS - IDLE_SINCE)))" "$dur"
 	if gw_reboot; then

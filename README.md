@@ -109,7 +109,7 @@ tmog4ar sends nothing off the router itself. When a reboot becomes recommended, 
 
 `/etc/hotplug.d/tmog4ar/50-example` is a commented-out example that pushes to [ntfy](https://ntfy.sh) with curl; uncomment it and change the topic, or add your own script next to it. Scripts in that directory are kept across sysupgrade. `tmog4ar notify-test` sends a test. Brief drops don't notify: the first notification comes when a reboot is recommended (30 minutes by default).
 
-The system log also gets a line when the gateway stops answering and when it's back, and for reboots from the button or `tmog4ar reboot`; those don't run the scripts. Lines use the daemon facility: `warning` for a recommended reboot, a failed or unsuccessful automatic reboot, a failed manual reboot and the gateway not answering, `notice` for the rest.
+The system log also gets a line when the gateway stops answering and when it's back, for reboots from the button or `tmog4ar reboot`, and when the night window closes with a recommended reboot not done, saying why; those don't run the scripts. Lines use the daemon facility: `warning` for a recommended reboot, a failed or unsuccessful automatic reboot, a failed manual reboot and the gateway not answering, `notice` for the rest.
 
 ### Naming towers
 
