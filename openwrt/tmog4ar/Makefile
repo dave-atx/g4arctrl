@@ -43,6 +43,18 @@ define Package/tmog4ar/conffiles
 /etc/hotplug.d/tmog4ar/50-example
 endef
 
+# Appended to the post-install and post-upgrade scripts, after default_postinst.
+# Its "start" leaves a running daemon alone (procd sees the same command), and
+# that shell keeps running the old script, so restart it on an upgrade. Only
+# if it's running: someone who stopped it keeps it stopped. Stopping flushes
+# the RAM buffer first.
+define Package/tmog4ar/postinst
+#!/bin/sh
+if [ -z "$${IPKG_INSTROOT}" ] && [ "$${PKG_UPGRADE}" = 1 ] && /etc/init.d/tmog4ar running; then
+	/etc/init.d/tmog4ar restart
+fi
+endef
+
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 endef
