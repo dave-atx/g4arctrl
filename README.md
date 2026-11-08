@@ -6,12 +6,14 @@ Status, history and "is it stuck?" checks for the T-Mobile Home Internet **TMO-G
 
 ## Why
 
-My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41 at 100 MHz, leaving about a third of the usual bandwidth until it's rebooted. Short drops to another band are normal handovers and fix themselves. tmog4ar logs a sample every minute so it can tell those two cases apart, and tells you when a reboot is worth it.
+My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41 at 100 MHz, leaving about a third of the usual bandwidth until it's rebooted. Short drops to another band are normal handovers and fix themselves. tmog4ar logs a sample every minute so it can tell those two cases apart, tells you when a reboot is worth it, and can do that reboot itself overnight if you want.
 
 ## What you get
 
 - **Status → Cellular** in LuCI: the band, channel width and signal (RSRP, RSRQ, SINR, etc), each with a one-line explanation of what it means and what counts as good. Plus a health verdict, a refresh button and a reboot button that asks first.
 - **History** for the last 24 hours, 7 days or 30 days: which band you were on over time, SINR and RSRP charts, a good-samples-by-hour heatmap, time on each band and tower, and every band / tower change.
+- **Optional automatic reboot at night.** When a reboot is recommended, tmog4ar can reboot the gateway itself between 02:00 and 05:00, once nobody's been using the internet for 15 minutes, at most once a night. Off by default; see [Automatic reboot at night](#automatic-reboot-at-night).
+- **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmog4ar/` (an ntfy example is included). See [Notifications](#notifications).
 - **Tower names, distance and direction.** Name the towers you connect to (it links to [CellMapper](https://www.cellmapper.net) to find them) and the page shows "Water tower · 4.0 mi S" with an arrow pointing at it, which helps when you're deciding which window to put the gateway in.
 - A **card on Status → Overview** and two **dashboard widgets** (if you use luci-mod-dashboard).
 - A **command line tool**, `tmog4ar`, with the same status and history in a terminal.
