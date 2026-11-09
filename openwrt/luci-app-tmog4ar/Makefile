@@ -10,7 +10,7 @@ LUCI_TITLE:=LuCI support for tmog4ar (T-Mobile TMO-G4AR gateway)
 LUCI_DEPENDS:=+luci-base +tmog4ar
 LUCI_PKGARCH:=all
 
-PKG_VERSION:=0.3.3
+PKG_VERSION:=0.3.4
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Dave Marquard <8920060+dave-atx@users.noreply.github.com>
 

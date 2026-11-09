@@ -7,7 +7,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tmog4ar
-PKG_VERSION:=0.3.3
+PKG_VERSION:=0.3.4
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0
