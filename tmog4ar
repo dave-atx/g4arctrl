@@ -1039,7 +1039,7 @@ wan_sample() {
 	local d rx tx dt kbit
 	if [ -z "$WAN_DEV" ]; then
 		WAN_DEV=$WAN_DEVICE
-		if [ -z "$WAN_DEV" ] && command -v ifstatus >/dev/null 2>&1; then
+		if [ ! -r "/sys/class/net/$WAN_DEV/statistics/rx_bytes" ] && command -v ifstatus >/dev/null 2>&1; then
 			WAN_DEV=$(ifstatus wan 2>/dev/null | jq -r '.l3_device // .device // empty' 2>/dev/null) || WAN_DEV=''
 		fi
 	fi
@@ -1047,6 +1047,9 @@ wan_sample() {
 	if [ -z "$WAN_DEV" ] || [ ! -r "$d/rx_bytes" ] || [ ! -r "$d/tx_bytes" ]; then
 		WAN_DEV='' WAN_TS='' IDLE_SINCE=''
 		return 0
+	fi
+	if [ -z "$WAN_TS" ] && [ -n "$WAN_DEVICE" ] && [ "$WAN_DEV" != "$WAN_DEVICE" ]; then
+		syslog notice "wan_device $WAN_DEVICE does not exist, measuring $WAN_DEV instead"
 	fi
 	read -r rx <"$d/rx_bytes"
 	read -r tx <"$d/tx_bytes"
@@ -1137,7 +1140,7 @@ auto_reboot_check() {
 		return 0
 	fi
 	if [ -z "$IDLE_SINCE" ]; then
-		AR_WHY="could not read the WAN traffic counters"
+		AR_WHY="could not read the traffic counters of ${WAN_DEVICE:-the wan interface device}"
 		return 0
 	fi
 	quiet=$((TS - IDLE_SINCE))
@@ -1597,7 +1600,7 @@ Settings are UCI options in /etc/config/tmog4ar, section "main":
                   quiet = under this many kbit/s each way, per minute (1000)
   auto_reboot_idle_minutes
                   for at least this long (15)
-  wan_device      the device to measure (default: the wan interface's, e.g. eth1)
+  wan_device      the device to measure (default, or if it doesn't exist: the wan interface's)
 
 Towers can be named, one "tower" section each, so output says "Water tower
 · 1.3 mi NE (42°)" rather than a bare gNB number (LuCI: Status > Cellular,

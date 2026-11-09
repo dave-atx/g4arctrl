@@ -90,7 +90,7 @@ msgstr ""
 msgid "5G"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:138
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:144
 msgid "5G (gNB)"
 msgstr ""
 
@@ -120,17 +120,13 @@ msgstr ""
 msgid "99% or more"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:105
-msgid "A device name, e.g. eth1"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:34
 msgid ""
 "A short label that nearby cells use to tell each other apart. Not unique: it "
 "repeats across a city."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:34
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:40
 msgid "API port"
 msgstr ""
 
@@ -146,11 +142,11 @@ msgstr ""
 msgid "Admin login"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:20
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:26
 msgid "Admin password"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:25
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:31
 msgid "Admin username"
 msgstr ""
 
@@ -160,7 +156,7 @@ msgid ""
 "telling than RSRP."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:77
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:83
 msgid "And"
 msgstr ""
 
@@ -180,7 +176,7 @@ msgstr ""
 msgid "Automatic gateway reboot"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:15
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:21
 msgid "Automatic reboot"
 msgstr ""
 
@@ -194,7 +190,7 @@ msgstr ""
 msgid "Band over time"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:45
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:51
 msgid "Bands that count as healthy, as the gateway names them (e.g. n41)."
 msgstr ""
 
@@ -202,7 +198,7 @@ msgstr ""
 msgid "Bars"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:71
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:77
 msgid "Between"
 msgstr ""
 
@@ -239,7 +235,7 @@ msgstr ""
 msgid "Cellular"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:7
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:13
 msgid "Cellular gateway"
 msgstr ""
 
@@ -286,7 +282,7 @@ msgstr ""
 msgid "Day"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:115
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:121
 msgid "Days."
 msgstr ""
 
@@ -303,7 +299,7 @@ msgstr ""
 msgid "Direction from the gateway to the tower, with north up"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:126
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:132
 msgid "Distance units"
 msgstr ""
 
@@ -324,7 +320,7 @@ msgstr ""
 msgid "Find on CellMapper"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:126
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:132
 msgid "For the distance to named towers."
 msgstr ""
 
@@ -332,12 +328,12 @@ msgstr ""
 msgid "Forget"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:12
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:18
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:260
 msgid "Gateway"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:29
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:35
 msgid "Gateway address"
 msgstr ""
 
@@ -370,16 +366,16 @@ msgid ""
 msgstr ""
 
 #: htdocs/luci-static/resources/view/status/include/35_tmog4ar.js:24
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:13
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:19
 msgid "Health"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:16
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:22
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:599
 msgid "History"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:110
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:116
 msgid "History directory"
 msgstr ""
 
@@ -414,11 +410,11 @@ msgstr ""
 msgid "Is the tmog4ar service running?"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:115
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:121
 msgid "Keep history for"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:128
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:134
 msgid "Kilometres"
 msgstr ""
 
@@ -427,11 +423,11 @@ msgstr ""
 msgid "LTE"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:139
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:145
 msgid "LTE (eNB)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:149
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:155
 msgid "Latitude"
 msgstr ""
 
@@ -452,7 +448,7 @@ msgstr ""
 msgid "Login failed: check the password in Settings"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:153
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:159
 msgid "Longitude"
 msgstr ""
 
@@ -460,7 +456,7 @@ msgstr ""
 msgid "MHz"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:52
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:58
 msgid ""
 "MHz. A preferred band narrower than this counts as unhealthy (only known "
 "with the admin password)."
@@ -471,22 +467,22 @@ msgstr ""
 msgid "Map"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:127
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:133
 msgid "Miles"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:58
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:64
 msgid ""
 "Minutes of unhealthy samples before a reboot is recommended. Shorter drops "
 "are normal handovers."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:95
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:101
 msgid ""
 "Minutes the internet connection has to stay that quiet before rebooting."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:121
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:127
 msgid ""
 "Minutes. Samples wait in RAM in between, which saves flash wear; a power cut "
 "loses at most this much. 0 writes every sample."
@@ -514,7 +510,7 @@ msgid "NW"
 msgstr ""
 
 #: htdocs/luci-static/resources/tmog4ar.js:675
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:146
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:152
 msgid "Name"
 msgstr ""
 
@@ -527,7 +523,7 @@ msgstr ""
 msgid "Name it…"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:132
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:138
 msgid ""
 "Names for the towers the gateway uses, so the status page and history say "
 "\"Water tower\" rather than a gNB number. With a location you also get the "
@@ -535,7 +531,7 @@ msgid ""
 "add one is \"Name it…\" next to the tower on the status page."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:51
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:57
 msgid "Narrowest healthy channel"
 msgstr ""
 
@@ -543,7 +539,7 @@ msgstr ""
 msgid "Needs the admin password (Settings)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:137
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:143
 msgid "Network"
 msgstr ""
 
@@ -592,7 +588,7 @@ msgstr ""
 msgid "Not on a preferred band."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:14
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:20
 msgid ""
 "Notifications: tmog4ar runs the scripts in /etc/hotplug.d/tmog4ar/ when a "
 "reboot becomes recommended, when the connection recovers, and before and "
@@ -619,11 +615,11 @@ msgid ""
 "coordinates."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:48
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:54
 msgid "One band name, letters and digits only"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:111
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:117
 msgid "One file per day. Only the default is kept across sysupgrade."
 msgstr ""
 
@@ -645,15 +641,15 @@ msgid ""
 "-122.2015)."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:44
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:50
 msgid "Preferred bands"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:87
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:93
 msgid "Quiet below"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:94
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:100
 msgid "Quiet for"
 msgstr ""
 
@@ -680,7 +676,7 @@ msgstr ""
 msgid "RSSI"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:63
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:69
 msgid "Reboot automatically"
 msgstr ""
 
@@ -709,7 +705,7 @@ msgstr ""
 msgid "Reboot requested. The gateway usually takes a few minutes to come back."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:64
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:70
 msgid ""
 "Reboot the gateway by itself when a reboot is recommended, at night while "
 "nobody is using the internet. At most one attempt a night. Needs the admin "
@@ -720,7 +716,7 @@ msgstr ""
 msgid "Reboot the gateway?"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:57
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:63
 msgid "Recommend reboot after"
 msgstr ""
 
@@ -732,11 +728,11 @@ msgstr ""
 msgid "Registration"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:39
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:45
 msgid "Request timeout"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:72
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:78
 msgid "Router local time."
 msgstr ""
 
@@ -779,7 +775,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:39
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:45
 msgid "Seconds."
 msgstr ""
 
@@ -787,7 +783,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:8
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:14
 msgid ""
 "Settings for tmog4ar, which samples the T-Mobile TMO-G4AR gateway once a "
 "minute. Saving restarts the sampler."
@@ -853,7 +849,7 @@ msgid ""
 "pick a speed. 15 is best."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:21
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:27
 msgid ""
 "The gateway's admin password: it's printed on the label on the back of the "
 "gateway, unless you've changed it. Needed for channel width, PCI, ARFCN, CQI "
@@ -875,21 +871,28 @@ msgstr ""
 msgid "The name of the T-Mobile data service the gateway connects through."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:102
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:110
 msgid ""
-"The network device whose traffic is measured. Empty uses the wan interface's "
-"device."
+"The network device whose traffic is measured. The wan interface has no "
+"device right now, so pick one here if your internet connection uses another "
+"interface."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:109
+msgid ""
+"The network device whose traffic is measured. Unspecified uses the wan "
+"interface's device, currently %s."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/tmog4ar/status.js:32
 msgid "The tower's ID number (gNB for 5G, eNB for LTE)."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:78
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:84
 msgid "The window ends at the start of this hour."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:84
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:90
 msgid "The window needs a different start and end hour"
 msgstr ""
 
@@ -918,11 +921,11 @@ msgstr ""
 msgid "Tower"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:142
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:148
 msgid "Tower ID"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:131
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:137
 msgid "Towers"
 msgstr ""
 
@@ -942,7 +945,7 @@ msgstr ""
 msgid "W"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:101
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:108
 msgid "WAN device"
 msgstr ""
 
@@ -973,7 +976,7 @@ msgstr ""
 msgid "Which of the gateway's antennas is in use."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:120
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:126
 msgid "Write to flash every"
 msgstr ""
 
@@ -1020,7 +1023,7 @@ msgstr ""
 msgid "history starts %s"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/tmog4ar/settings.js:88
+#: htdocs/luci-static/resources/view/tmog4ar/settings.js:94
 msgid ""
 "kbit/s, both download and upload, averaged over each minute. 1000 is 1 Mbit/"
 "s."

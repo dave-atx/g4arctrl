@@ -1,9 +1,15 @@
 'use strict';
 'require view';
 'require form';
+'require network';
+'require tools.widgets as widgets';
 
 return view.extend({
-	render() {
+	load() {
+		return network.getNetwork('wan');
+	},
+
+	render(wan) {
 		const m = new form.Map('tmog4ar', _('Cellular gateway'),
 			_('Settings for tmog4ar, which samples the T-Mobile TMO-G4AR gateway once a minute. Saving restarts the sampler.'));
 
@@ -98,12 +104,12 @@ return view.extend({
 		o.rmempty = true;
 		o.depends('auto_reboot', '1');
 
-		o = s.taboption('reboot', form.Value, 'wan_device', _('WAN device'),
-			_('The network device whose traffic is measured. Empty uses the wan interface\'s device.'));
-		o.placeholder = 'eth1';
-		o.validate = function(section_id, value) {
-			return (value == '' || /^[A-Za-z0-9._@-]+$/.test(value)) ? true : _('A device name, e.g. eth1');
-		};
+		const wanDev = wan ? wan.getL3Device() : null;
+		o = s.taboption('reboot', widgets.DeviceSelect, 'wan_device', _('WAN device'),
+			wanDev ? _('The network device whose traffic is measured. Unspecified uses the wan interface\'s device, currently %s.').format(wanDev.getName())
+				: _('The network device whose traffic is measured. The wan interface has no device right now, so pick one here if your internet connection uses another interface.'));
+		o.noaliases = true;
+		o.nocreate = true;
 		o.rmempty = true;
 		o.depends('auto_reboot', '1');
 

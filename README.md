@@ -97,7 +97,7 @@ Settings → Automatic reboot (off by default; needs the admin password). With i
 - once the internet connection has been quiet (under 1 Mbit/s both ways, each minute) for 15 minutes, so nobody's in the middle of something,
 - at most once a night. If it's still degraded afterwards, it tries again the next night.
 
-The router can't see who's home, so "quiet" means the traffic on its WAN port (`eth1` on a Pi 5). A big download or a backup running all night keeps it from rebooting that night. All of these are settings. Reboots, automatic or from the button, show up in the history's changes.
+The router can't see who's home, so "quiet" means the traffic on its WAN device (`eth1` on a Pi 5, found automatically unless you pick one). A big download or a backup running all night keeps it from rebooting that night. All of these are settings. Reboots, automatic or from the button, show up in the history's changes.
 
 ### Notifications
 
