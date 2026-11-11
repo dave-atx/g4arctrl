@@ -6,5 +6,5 @@ cake-adapt luci-app-cake-adapt
 
 # cake-adapt isn't in the OpenWrt feeds. To update it, change the URLs and take
 # the sha256 from the release page (each asset shows its digest).
-apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.0/aarch64_cortex-a76_cake-adapt-1.0.0-r1.apk 4209d5fdddfc060c6eb661f0b5bf9e7f86523aaf03e2c61e3fd9014e7bdad622
-apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.0/luci-app-cake-adapt-1.0.0-r1.apk 6162aae24bc17b7cafacde886dfc6a1010c95d396c461e72595980995243d673
+apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.1/aarch64_cortex-a76_cake-adapt-1.0.1-r1.apk 598ae653c9d9d995dfd5343a275fce3b6a3914e061d019798be92a849f469c5f
+apk https://github.com/huydoan94/cake-adapt/releases/download/v1.0.1/luci-app-cake-adapt-1.0.1-r1.apk ffbe8527cd4c4bf3ebddd9248bdf2ff7dbc71c0b8794973c16563397c4549f8a
