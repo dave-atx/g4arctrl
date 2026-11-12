@@ -176,3 +176,27 @@ test('cellMapper link', () => {
 		'https://www.cellmapper.net/map?MCC=310&MNC=260&type=NR&latitude=47.6101&longitude=-122.2015&zoom=14');
 	assert.equal(tmhi.cellMapper({}, 'lte'), 'https://www.cellmapper.net/map?MCC=310&MNC=260&type=LTE');
 });
+
+// ---- Scroll position ------------------------------------------------------------
+
+// Safari lost the place on a reload: the view is drawn after its data loads.
+test('restoreTo: back to the saved place after a reload or back / forward', () => {
+	const t = 1793836800000;
+
+	const saved = { y: 1500, mark: { key: 'sub:signal', nth: 0, off: 120 }, t: t - 5000 };
+
+	assert.equal(tmhi.restoreTo('reload', saved, t), saved);
+	assert.equal(tmhi.restoreTo('back_forward', saved, t), saved);
+});
+
+test('restoreTo: not on a new visit, at the top, or for an old or bad entry', () => {
+	const t = 1793836800000;
+
+	assert.equal(tmhi.restoreTo('navigate', { y: 1500, t: t - 5000 }, t), null);
+	assert.equal(tmhi.restoreTo(undefined, { y: 1500, t: t - 5000 }, t), null);
+	assert.equal(tmhi.restoreTo('reload', { y: 0, t: t - 5000 }, t), null);
+	assert.equal(tmhi.restoreTo('reload', { y: 1500, t: t - 2 * 3600000 }, t), null);
+	assert.equal(tmhi.restoreTo('reload', { y: 1500, t: t + 60000 }, t), null);
+	assert.equal(tmhi.restoreTo('reload', null, t), null);
+	assert.equal(tmhi.restoreTo('reload', { y: 'x', t: t }, t), null);
+});

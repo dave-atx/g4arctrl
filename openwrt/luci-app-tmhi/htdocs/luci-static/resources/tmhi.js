@@ -372,6 +372,111 @@ return baseclass.extend({
 		return fs.exec(CLI, [ 'reboot', '--force' ]);
 	},
 
+	// ---- Scroll position -------------------------------------------------
+	//
+	// Rows and headings that get redrawn carry a data-place key that stays
+	// the same across redraws. A mark is the first of them in view and how
+	// far it is from the top of the window; going back to a mark scrolls so
+	// that element is there again. Safari has no scroll anchoring, so
+	// without this the page jumps whenever something above the reader
+	// changes height.
+
+	// The mark for what the reader is looking at, or null.
+	placeMark() {
+		const marks = Array.from(document.querySelectorAll('[data-place]'));
+		const i = marks.findIndex(el => el.getBoundingClientRect().top >= 0);
+
+		if (i < 0)
+			return null;
+
+		const key = marks[i].getAttribute('data-place');
+
+		return {
+			key: key,
+			nth: marks.slice(0, i).filter(el => el.getAttribute('data-place') == key).length,
+			off: marks[i].getBoundingClientRect().top
+		};
+	},
+
+	// Scroll so the mark is where it was; false when it isn't on the page.
+	toMark(mark) {
+		const el = Array.from(document.querySelectorAll('[data-place]'))
+			.filter(e => e.getAttribute('data-place') == mark.key)[mark.nth];
+
+		if (!el)
+			return false;
+
+		const moved = el.getBoundingClientRect().top - mark.off;
+
+		if (Math.abs(moved) >= 1)
+			window.scrollBy(0, moved);
+
+		return true;
+	},
+
+	// A view is drawn only once its data has loaded, too late for the
+	// browser to put a reload back where the reader was (and Safari drops a
+	// scroll made while the page loads). So the place is remembered when the
+	// page goes away and restored after a reload or back / forward.
+
+	// The saved { y, mark, t } to go back to: after a reload or back /
+	// forward, within the hour, and not at the top. Else null.
+	restoreTo(navType, saved, now) {
+		if (navType != 'reload' && navType != 'back_forward')
+			return null;
+		if (!saved || !(saved.y > 0) || !(now - saved.t >= 0 && now - saved.t < 3600000))
+			return null;
+
+		return saved;
+	},
+
+	// Call from render(): remembers the place under key when the page goes
+	// away, and goes back to it once the view is on the page. LuCI fills in
+	// the menu and tabs above the view around then, so it goes back again a
+	// few times in the first two seconds, unless the reader scrolls first.
+	keepScroll(key) {
+		let saved = null;
+
+		try {
+			saved = JSON.parse(window.sessionStorage.getItem(key));
+		}
+		catch {
+			// none: start at the top
+		}
+
+		const nav = ((window.performance && performance.getEntriesByType)
+			? (performance.getEntriesByType('navigation')[0] || {}) : {}).type;
+		const to = this.restoreTo(nav, saved, Date.now());
+
+		window.addEventListener('pagehide', () => {
+			try {
+				window.sessionStorage.setItem(key, JSON.stringify({ y: Math.round(window.scrollY), mark: this.placeMark(), t: Date.now() }));
+			}
+			catch {
+				// nowhere to keep it
+			}
+		});
+
+		if (to == null)
+			return;
+
+		if ('scrollRestoration' in window.history)
+			window.history.scrollRestoration = 'manual';
+
+		let moved = false;
+		const go = () => {
+			if (!moved && !(to.mark && this.toMark(to.mark)))
+				window.scrollTo(0, to.y);
+		};
+
+		[ 'wheel', 'touchstart', 'keydown', 'mousedown' ].forEach(ev =>
+			window.addEventListener(ev, () => { moved = true; }, { once: true, passive: true }));
+
+		// The view goes into the page after render() returns.
+		window.requestAnimationFrame(go);
+		[ 150, 400, 1000, 2000 ].forEach(ms => window.setTimeout(go, ms));
+	},
+
 	// ---- Words -----------------------------------------------------------
 
 	dur(s) {

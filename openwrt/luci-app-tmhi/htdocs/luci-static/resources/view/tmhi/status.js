@@ -75,32 +75,16 @@ function cell(content, className, title) {
 	return E('td', { 'class': 'td ' + (className || ''), 'data-title': title || null }, [ content ?? '' ]);
 }
 
-// Redraw without moving what the reader is looking at. Rows and headings
-// carry a data-place key that stays the same across redraws: note where the
-// first one in view sits, redraw, then scroll by however far it moved. A new
-// hour row, or a line that wraps differently, above the reader would
-// otherwise push the page around (and Safari has no scroll anchoring).
+// Redraw without moving what the reader is looking at: a new hour row, or a
+// line that wraps differently, above the reader would otherwise push the page
+// around (see placeMark() in tmhi.js).
 function keepPlace(redraw) {
-	const top = el => el.getBoundingClientRect().top;
-	const marks = Array.from(document.querySelectorAll('[data-place]'));
-	const i = marks.findIndex(el => top(el) >= 0);
-
-	if (i < 0) {
-		redraw();
-		return;
-	}
-
-	const key = marks[i].getAttribute('data-place');
-	const nth = marks.slice(0, i).filter(el => el.getAttribute('data-place') == key).length;
-	const before = top(marks[i]);
+	const mark = tmhi.placeMark();
 
 	redraw();
 
-	const again = Array.from(document.querySelectorAll('[data-place]')).filter(el => el.getAttribute('data-place') == key)[nth];
-	const moved = again ? top(again) - before : 0;
-
-	if (Math.abs(moved) >= 1)
-		window.scrollBy(0, moved);
+	if (mark)
+		tmhi.toMark(mark);
 }
 
 function pctClass(share) {
@@ -132,7 +116,7 @@ return view.extend({
 	handleRefresh() {
 		return tmhi.refresh().then(s => {
 			this.sample = s;
-			this.renderStatus();
+			keepPlace(() => this.renderStatus());
 		}).catch(e => {
 			ui.addNotification(null, E('p', [ _('Could not refresh: %s').format(e.message) ]), 'danger');
 		});
@@ -564,6 +548,7 @@ return view.extend({
 
 	render([ sample, hist, towers ]) {
 		tmhi.loadCSS();
+		tmhi.keepScroll('tmhi-status-scroll');
 
 		this.sample = sample;
 		this.hist = hist;
