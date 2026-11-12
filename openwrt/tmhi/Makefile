@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tmhi
-PKG_VERSION:=0.4.0
+PKG_VERSION:=0.4.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/dave-atx/g4arctrl/releases/download/v$(PKG_VERSION)
-PKG_HASH:=3effb749b8eb9b60b46e1d049795fa2a90cdcda7e0f16debd26e7a915aa05374
+PKG_HASH:=1de370c3904c0bf1c63d39ccfcbf0572377b1f829ee297207aa85d8c7e6557b8
 
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
