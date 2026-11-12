@@ -35,18 +35,6 @@ define Package/tmhi/conffiles
 /etc/hotplug.d/tmhi/50-example
 endef
 
-# Appended to the post-install and post-upgrade scripts, after default_postinst.
-# Its "start" leaves a running daemon alone (procd sees the same command), and
-# that shell keeps running the old script, so restart it on an upgrade. Only
-# if it's running: someone who stopped it keeps it stopped. Stopping flushes
-# the RAM buffer first.
-define Package/tmhi/postinst
-#!/bin/sh
-if [ -z "$${IPKG_INSTROOT}" ] && [ "$${PKG_UPGRADE}" = 1 ] && /etc/init.d/tmhi running; then
-	/etc/init.d/tmhi restart
-fi
-endef
-
 define Build/Compile
 endef
 

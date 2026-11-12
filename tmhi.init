@@ -12,8 +12,10 @@ start_service() {
 	procd_open_instance
 	procd_set_param command /usr/bin/tmhi daemon
 	# Settings are only read at start; a config reload restarts the daemon if
-	# this file changed.
-	procd_set_param file /etc/config/tmhi
+	# this file changed. The script is listed too: the daemon is a shell that
+	# keeps running the script it started with, and after a package upgrade
+	# the "start" in default_postinst restarts it only if a listed file changed.
+	procd_set_param file /etc/config/tmhi /usr/bin/tmhi
 	# Keep retrying every 60s if it exits (e.g. jq missing after an upgrade).
 	procd_set_param respawn 3600 60 0
 	# Room for an in-flight request (the timeout option) to finish before the flush.

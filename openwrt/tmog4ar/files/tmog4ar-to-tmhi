@@ -79,7 +79,7 @@ rm -f /etc/rc.d/S??tmog4ar /etc/rc.d/K??tmog4ar
 
 [ -f "$old_conf" ] || [ -d "$old_hist" ] || [ -d "$old_run" ] || [ -d /etc/hotplug.d/tmog4ar ] || exit 0
 
-# tmhi's postinst has already started it with the default settings.
+# Installing tmhi has already started it with the default settings.
 pids=$(service_pids tmhi)
 tmhi_running=
 if [ -n "$pids" ]; then
