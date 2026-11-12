@@ -34,6 +34,27 @@ const baseclass = { extend: o => o };
 const tmhi = new Function('baseclass', 'fs', 'uci', 'ui', 'L', 'E', '_', src)(
 	baseclass, {}, {}, {}, {}, () => null, s => s);
 
+// ---- Tooltip placement --------------------------------------------------------
+
+test('tooltip goes right of the cursor when it fits', () => {
+	assert.equal(tmhi.tipLeft(100, 200, 1000), 106);
+});
+
+// The tooltip near the right edge used to run past the plot and get clipped.
+test('tooltip near the right edge goes left of the cursor', () => {
+	assert.equal(tmhi.tipLeft(900, 200, 1000), 694);
+	assert.equal(tmhi.tipLeft(1000, 200, 1000), 794);
+});
+
+test('tooltip stays inside the plot when neither side fits', () => {
+	// Phone width: 300 px plot, 250 px tooltip, cursor in the middle.
+	assert.equal(tmhi.tipLeft(150, 250, 300), 0);
+	assert.equal(tmhi.tipLeft(40, 250, 300), 46);
+	assert.equal(tmhi.tipLeft(290, 250, 300), 34);
+	// Wider than the plot (it wraps, but just in case): pinned left.
+	assert.equal(tmhi.tipLeft(150, 400, 300), 0);
+});
+
 // ---- Words -------------------------------------------------------------------
 
 test('dur', () => {

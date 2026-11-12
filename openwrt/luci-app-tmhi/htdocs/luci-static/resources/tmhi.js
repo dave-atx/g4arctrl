@@ -224,10 +224,10 @@ const CSS = `
 .tmhi-tip {
 	position: absolute;
 	top: 0.25em;
-	margin-left: 0.5em;
+	max-width: 100%;
+	box-sizing: border-box;
 	padding: 0.2em 0.5em;
 	font-size: 80%;
-	white-space: nowrap;
 	background: var(--background-color-high, #fff);
 	border: 1px solid var(--tmhi-line);
 	border-radius: 3px;
@@ -811,6 +811,16 @@ return baseclass.extend({
 	// A line chart of one metric from history buckets: the average as a line
 	// and min..max as a band behind it. Missing buckets leave gaps.
 	//   opts: { h, t0, t1, index (3 rsrp, 4 sinr), metric, unit, label }
+	// Where a tooltip w px wide goes for a cursor at x in a plot width px
+	// wide: right of the cursor if it fits, else left of it, and never past
+	// either edge, because the page around the plot clips what sticks out.
+	tipLeft(x, w, width) {
+		const gap = 6;
+		const at = (x + gap + w <= width) ? x + gap : x - gap - w;
+
+		return Math.max(0, Math.min(at, width - w));
+	},
+
 	lineChart(opts) {
 		const h = opts.h, t0 = opts.t0, t1 = opts.t1;
 		const m = METRICS[opts.metric];
@@ -906,8 +916,11 @@ return baseclass.extend({
 
 			cursor.style.display = tip.style.display = '';
 			cursor.style.left = '%.2f%%'.format(left);
-			tip.style.left = '%.2f%%'.format(Math.min(left, 75));
 			tip.textContent = _('%s: avg %s, min %s, max %s %s').format(this.dateTime(best[0], h.tzoff), v[0], v[1], v[2], opts.unit);
+
+			// Measured at the left edge, where it has the whole width to wrap in.
+			tip.style.left = '0';
+			tip.style.left = '%.1fpx'.format(this.tipLeft(left / 100 * rect.width, tip.offsetWidth, rect.width));
 		});
 		plot.addEventListener('mouseleave', () => { tip.style.display = cursor.style.display = 'none'; });
 
