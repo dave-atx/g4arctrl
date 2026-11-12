@@ -45,6 +45,28 @@ test_old_history_pruned() {
 	eq "$(lines "$T/hist/events.tsv")" 1 "events kept"
 }
 
+# At boot the daemon starts before the network is up, and an upgrade or a
+# settings change restarts it: the first samples found no gateway and
+# showed as "(unreachable)" in the history. Until the gateway first answers
+# (for up to 5 minutes), that's not news.
+test_unreachable_at_start_not_recorded() {
+	down_until 12
+	clock 10
+	daemon 4
+	eq "$(samples)" 2 samples
+	eq "$(cut -f2 "$T"/hist/history-*.tsv | sort -u | tr '\n' ' ')" "reg registered " "kinds of sample"
+	[ ! -f "$T/syslog" ] || fail "syslog: $(cat "$T/syslog")"
+}
+
+test_unreachable_at_start_kept_after_5_minutes() {
+	gateway down
+	clock 10
+	daemon 7
+	eq "$(samples)" 2 "samples (after 5 minutes)"
+	eq "$(grep -c 'No answer from the gateway' "$T/syslog")" 1 "syslog lines"
+	eq "$(json .health.level "$RUN/latest.json")" down level
+}
+
 # Once it has answered, an outage is news right away, logged once per stretch.
 test_outage_after_start_recorded_and_logged_once() {
 	clock 10
@@ -57,6 +79,21 @@ test_outage_after_start_recorded_and_logged_once() {
 		"2 registered,3 unreachable,2 registered," samples
 	eq "$(cut -d' ' -f2- "$T/syslog")" "warning No answer from the gateway: gateway gateway.test:8080 unreachable
 notice The gateway is answering again after 3m" syslog
+}
+
+# In the 5 minutes after a reboot was sent, the gateway not answering is
+# expected (the reboot is in the history already).
+test_unreachable_after_reboot_not_recorded() {
+	gateway down
+	events <<-E
+		8 manual ok n41 100 MHz
+	E
+	clock 10
+	tmhi log
+	eq "$(samples)" 0 "samples 2 minutes after"
+	clock 14
+	tmhi log
+	eq "$(samples)" 1 "samples 6 minutes after"
 }
 
 # A notification when a reboot becomes recommended, once per bad stretch

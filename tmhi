@@ -925,10 +925,35 @@ flush_history() {
 	prune_history
 }
 
+# unreachable_expected: is the gateway not answering no news? Yes while the
+# daemon has just started and the gateway hasn't answered yet (at boot the
+# network may not be up yet; an upgrade or a settings change restarts the
+# daemon too), and in the 5 minutes after a reboot was sent to the gateway
+# (it is in events.tsv already). Those samples stay out of the history and
+# syslog; health still says the gateway is down. Longer than that, it's news.
+DAEMON_START=''
+ANSWERED=0
+unreachable_expected() {
+	local last
+	if [ "$ANSWERED" = 0 ] && [ -n "$DAEMON_START" ] && [ $((TS - DAEMON_START)) -lt 300 ]; then return 0; fi
+	[ -f "$EVENTS" ] || return 1
+	last=$(tail -n 1 "$EVENTS" | cut -f1)
+	case "$last" in '' | *[!0-9]*) return 1 ;; esac
+	[ $((TS - last)) -lt 300 ]
+}
+
 # log_sample: take one sample and add it to the RAM buffer, flushing when due
+EXPECTED_DOWN=0
 log_sample() {
 	local first
 	collect
+	EXPECTED_DOWN=0
+	if [ -z "$FETCH_ERR" ]; then
+		ANSWERED=1
+	elif unreachable_expected; then
+		EXPECTED_DOWN=1
+		return 0
+	fi
 	# Single-file layout from earlier versions: rename it so it sorts first and ages out.
 	if [ -f "$HISTORY_DIR/history.tsv" ]; then
 		mv "$HISTORY_DIR/history.tsv" "$HISTORY_DIR/history-0000-00-00.tsv"
@@ -1009,7 +1034,7 @@ notify_check() {
 fetch_check() {
 	local f="$RUN_DIR/unreachable" since
 	if [ -n "$FETCH_ERR" ]; then
-		[ -f "$f" ] && return 0
+		if [ -f "$f" ] || [ "$EXPECTED_DOWN" = 1 ]; then return 0; fi
 		echo "$TS" >"$f"
 		syslog warning "No answer from the gateway: $FETCH_ERR"
 	elif [ -f "$f" ]; then
@@ -1221,6 +1246,7 @@ cmd_daemon() {
 	if [ "$interval" -lt 10 ]; then interval=10; fi
 	init
 	awk_env
+	DAEMON_START=$(date +%s)
 	trap daemon_stop INT TERM HUP
 	while :; do
 		log_sample
