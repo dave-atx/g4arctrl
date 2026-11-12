@@ -11,7 +11,7 @@ PKG_VERSION:=0.3.4
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0
-PKG_MAINTAINER:=Dave Marquard <8920060+dave-atx@users.noreply.github.com>
+PKG_MAINTAINER:=Dave Marquard <dave@marquard.org>
 
 include $(INCLUDE_DIR)/package.mk
 
