@@ -3,6 +3,11 @@
 # and luci-app-tmhi and moves the settings and history over (files/). Only in
 # this repository's feed and images, never upstream. They can go once the
 # routers that had tmog4ar have upgraded.
+#
+# The version doesn't follow tmhi's: these depend on tmhi and luci-app-tmhi
+# without a version, and a bump would make routers that still have them
+# upgrade for nothing and run the migration again. Bump it only when
+# something here changes.
 
 include $(TOPDIR)/rules.mk
 

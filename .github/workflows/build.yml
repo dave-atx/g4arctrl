@@ -76,6 +76,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Not the transitional tmog4ar packages: their version stays put (see
+      # openwrt/tmog4ar/Makefile).
       - name: Check the tag matches the version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -84,9 +86,8 @@ jobs:
           script=$(sed -n 's/^VERSION=\([^ ]*\).*/\1/p' tmhi)
           pkg=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmhi/Makefile)
           luci=$(sed -n 's/^PKG_VERSION:=//p' openwrt/luci-app-tmhi/Makefile)
-          old=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmog4ar/Makefile)
-          echo "tag $tag, script $script, package $pkg, luci-app $luci, tmog4ar $old"
-          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ] && [ "$tag" = "$old" ]
+          echo "tag $tag, script $script, package $pkg, luci-app $luci"
+          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ]
 
       # The SDK takes 5-20 minutes, so keep the built repository and skip it
       # when nothing it's built from has changed (image-only changes, -rN
