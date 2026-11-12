@@ -2,6 +2,8 @@
 
 Status, history and "is it stuck?" checks for the T-Mobile Home Internet **TMO-G4AR** (Arcadyan) gateway, for an OpenWrt router sitting behind it. There's a LuCI app for the router's web interface and a command line tool underneath it.
 
+tmhi used to be called tmog4ar; see [Upgrading from tmog4ar](#upgrading-from-tmog4ar).
+
 ![The Cellular page: health, connection details and 5G signal with plain-language explanations](docs/screenshots/status.png)
 
 ## Why
@@ -58,9 +60,17 @@ apk update && apk upgrade
 
 Your settings and history are kept.
 
+### Upgrading from tmog4ar
+
+tmog4ar was renamed tmhi in 0.4.0. `apk upgrade` (or `image-upgrade` on the Pi images) moves you over: the `tmog4ar` and `luci-app-tmog4ar` packages become empty ones that install `tmhi` and `luci-app-tmhi`, and the first time they're installed they move your settings (`/etc/config/tmhi`), history (`/root/.tmhi/`, if you kept the default `history_dir`) and notification scripts (`/etc/hotplug.d/tmhi/`) across. Afterwards you can remove them with `apk del tmog4ar luci-app-tmog4ar`; `tmog4ar` stays a shortcut for `tmhi` until you do.
+
+What changes for you: the page is still Status → Cellular. The command is `tmhi`, the syslog tag and ubus event are `tmhi` (`logread -e tmhi`, `ubus listen tmhi`), and hook scripts run from `/etc/hotplug.d/tmhi/`. Anything of your own that watches for `tmog4ar` in the log or listens for the `tmog4ar` ubus event needs the new name.
+
+If you installed the `.apk` files from Releases rather than the repository, install all four from the new release (`tmhi`, `luci-app-tmhi`, `tmog4ar`, `luci-app-tmog4ar`) so the old ones are replaced rather than left running alongside.
+
 ### Without adding the repository
 
-Download the two `.apk` files from [Releases](https://github.com/dave-atx/g4arctrl/releases), copy them to the router, and:
+Download the `tmhi` and `luci-app-tmhi` `.apk` files from [Releases](https://github.com/dave-atx/g4arctrl/releases), copy them to the router, and:
 
 ```sh
 apk add --allow-untrusted ./tmhi-*.apk ./luci-app-tmhi-*.apk
@@ -215,7 +225,7 @@ echo "src-link tmhi /path/to/g4arctrl/openwrt" >> feeds.conf
 make defconfig && make package/tmhi/compile package/luci-app-tmhi/compile
 ```
 
-CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile` and `openwrt/luci-app-tmhi/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile`, `openwrt/luci-app-tmhi/Makefile` and `openwrt/tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
 
 ### Changing the images
 

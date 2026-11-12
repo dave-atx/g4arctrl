@@ -6,3 +6,7 @@
 #   apk <url> <sha256>
 # The package name still has to be listed on its own.
 tmhi luci-app-tmhi
+# Transitional (tmog4ar is now tmhi): a sysupgrade from an image that had
+# tmog4ar keeps its settings and history, and these move them to tmhi at
+# first boot. Drop them once the routers that had tmog4ar have upgraded.
+tmog4ar luci-app-tmog4ar

@@ -1,6 +1,7 @@
-# git-cliff config for the package release notes (tmhi and
-# luci-app-tmhi). CI runs `git-cliff --latest` for a vX.Y.Z tag and puts the
-# result above the image package tables; see AGENTS.md (Versions and releases).
+# git-cliff config for the package release notes (tmhi, luci-app-tmhi and the
+# transitional tmog4ar packages). CI runs `git-cliff --latest` for a vX.Y.Z
+# tag and puts the result above the image package tables; see AGENTS.md
+# (Versions and releases).
 #
 # Each commit that touches the packages gives one line per "Release-note:"
 # line it has, or else its subject. "Release-note: none" leaves it out.
@@ -38,6 +39,7 @@ include_paths = [
   "tmhi.hotplug",
   "openwrt/tmhi/**",
   "openwrt/luci-app-tmhi/**",
+  "openwrt/tmog4ar/**",
 ]
 filter_commits = true
 # Release-note lines for commits that were merged without one. Each pattern

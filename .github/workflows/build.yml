@@ -30,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
-          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
@@ -57,8 +57,9 @@ jobs:
           script=$(sed -n 's/^VERSION=\([^ ]*\).*/\1/p' tmhi)
           pkg=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmhi/Makefile)
           luci=$(sed -n 's/^PKG_VERSION:=//p' openwrt/luci-app-tmhi/Makefile)
-          echo "tag $tag, script $script, package $pkg, luci-app $luci"
-          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ]
+          old=$(sed -n 's/^PKG_VERSION:=//p' openwrt/tmog4ar/Makefile)
+          echo "tag $tag, script $script, package $pkg, luci-app $luci, tmog4ar $old"
+          [ "$tag" = "$script" ] && [ "$tag" = "$pkg" ] && [ "$tag" = "$luci" ] && [ "$tag" = "$old" ]
 
       # The SDK takes 5-20 minutes, so keep the built repository and skip it
       # when nothing it's built from has changed (image-only changes, -rN
@@ -68,7 +69,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: repo
-          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'tmhi.init', 'tmhi.config', 'tmhi.hotplug', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**') }}
+          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'tmhi.init', 'tmhi.config', 'tmhi.hotplug', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**', 'openwrt/tmog4ar/**', 'openwrt/sdk-build.sh') }}
 
       # Both packages are noarch, so any SDK will do. The LuCI app is built
       # with luci.mk, so the default feeds (which include luci) stay on.
@@ -93,6 +94,8 @@ jobs:
           cp bin/packages/aarch64_generic/action/packages.adb \
              bin/packages/aarch64_generic/action/tmhi-*.apk \
              bin/packages/aarch64_generic/action/luci-app-tmhi-*.apk \
+             bin/packages/aarch64_generic/action/tmog4ar-*.apk \
+             bin/packages/aarch64_generic/action/luci-app-tmog4ar-*.apk \
              openwrt/tmog4ar.pem repo/
           ls -l repo
 
@@ -110,7 +113,12 @@ jobs:
               apk update
               apk add tmhi luci-app-tmhi
               tmhi version
-              uci -q get tmhi.main.host'
+              uci -q get tmhi.main.host
+              # The transitional package moves tmog4ar settings over.
+              printf "config tmog4ar main\n\toption host 192.0.2.1\n" >/etc/config/tmog4ar
+              apk add tmog4ar luci-app-tmog4ar
+              [ "$(uci -q get tmhi.main.host)" = 192.0.2.1 ] && [ ! -e /etc/config/tmog4ar ]
+              tmog4ar version'
 
       - uses: actions/upload-artifact@v7
         with:
@@ -225,7 +233,7 @@ jobs:
         run: |
           case $GITHUB_REF_NAME in
             *-r[0-9]*) set -- ;;
-            *) set -- repo/tmhi-*.apk repo/luci-app-tmhi-*.apk repo/tmog4ar.pem ;;
+            *) set -- repo/tmhi-*.apk repo/luci-app-tmhi-*.apk repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmog4ar.pem ;;
           esac
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "$GITHUB_REF_NAME" --latest \

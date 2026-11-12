@@ -1,0 +1,142 @@
+#!/bin/sh
+# tmog4ar was renamed tmhi in 0.4.0. This moves an existing install over:
+# settings, history, notification hooks and the daemon's state. It's a
+# uci-defaults script in the transitional tmog4ar package, so it runs once:
+# right after `apk upgrade` (default_postinst runs it), or at first boot after
+# a sysupgrade to an image that has the transitional package.
+#
+# Not part of tmhi itself: tmhi is meant to go to openwrt/packages, which never
+# had tmog4ar.
+
+old_conf=/etc/config/tmog4ar
+new_conf=/etc/config/tmhi
+old_hist=/root/.tmog4ar
+new_hist=/root/.tmhi
+old_run=/tmp/tmog4ar-0
+new_run=/tmp/tmhi-0
+
+# move_into OLD NEW: move every file in directory OLD into NEW. Where NEW
+# already has a file of that name (tmhi may have written some already), its
+# lines go after OLD's: the history readers re-map columns at every header
+# line, so a second header in the middle of a day's file is fine.
+move_into() {
+	[ -d "$1" ] || return 0
+	mkdir -p "$2"
+	for f in "$1"/* "$1"/.[!.]*; do
+		[ -f "$f" ] || continue
+		if [ -f "$2/${f##*/}" ]; then
+			cat "$2/${f##*/}" >>"$f" || return 1
+		fi
+		mv -f "$f" "$2/${f##*/}" || return 1
+	done
+	rmdir "$1" 2>/dev/null
+	return 0
+}
+
+# service_pids NAME: the pids of a procd service's instances
+service_pids() {
+	ubus call service list "{\"name\":\"$1\"}" 2>/dev/null |
+		jsonfilter -e "@.$1.instances[*].pid" 2>/dev/null
+}
+
+# wait_gone PID...: until they've exited, at most 35 s. A daemon handles TERM
+# once its current request to the gateway is done, then writes its RAM buffer
+# to flash; the init script gave it 30 s for that.
+wait_gone() {
+	n=0
+	for pid; do
+		while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 35 ]; do
+			sleep 1
+			n=$((n + 1))
+		done
+	done
+}
+
+# Add tmhi (and luci-app-tmhi if the old LuCI app was installed) to apk's world:
+# they came in only as dependencies of the tmog4ar packages, so removing those
+# later would remove tmhi too. This runs inside apk's transaction, which holds
+# the lock and writes the world when it finishes, so a background apk waits for
+# the lock and adds them after that. An image's world already has them.
+world=/etc/apk/world
+if [ -f "$world" ] && ! grep -q '^tmhi\([<>=~]\|$\)' "$world"; then
+	pkgs=tmhi
+	grep -q '^luci-app-tmog4ar\([<>=~]\|$\)' "$world" && pkgs="$pkgs luci-app-tmhi"
+	# shellcheck disable=SC2086 # one package per word
+	apk --wait 600 --no-network add $pkgs </dev/null >/dev/null 2>&1 &
+fi
+
+# Stop the old daemon. Upgrading removed its init script, but procd still runs
+# it.
+pids=$(service_pids tmog4ar)
+was_running=
+if [ -n "$pids" ]; then
+	was_running=1
+	ubus call service delete '{"name":"tmog4ar"}' >/dev/null 2>&1
+	# shellcheck disable=SC2086 # one pid per word
+	wait_gone $pids
+fi
+rm -f /etc/rc.d/S??tmog4ar /etc/rc.d/K??tmog4ar
+
+[ -f "$old_conf" ] || [ -d "$old_hist" ] || [ -d "$old_run" ] || [ -d /etc/hotplug.d/tmog4ar ] || exit 0
+
+# tmhi's postinst has already started it with the default settings.
+pids=$(service_pids tmhi)
+tmhi_running=
+if [ -n "$pids" ]; then
+	tmhi_running=1
+	/etc/init.d/tmhi stop >/dev/null 2>&1
+	# shellcheck disable=SC2086
+	wait_gone $pids
+fi
+
+# Settings. Leave a tmhi config alone if it already has a password: someone
+# set tmhi up by hand, and the old settings would undo that.
+hist=$old_hist
+if [ -f "$old_conf" ]; then
+	hist=$(uci -q get tmog4ar.main.history_dir) || hist=$old_hist
+	if [ -z "$(uci -q get tmhi.main.password)" ]; then
+		(
+			umask 077
+			sed -e "s/^config tmog4ar /config tmhi /" \
+				-e "s#^\([[:space:]]*option history_dir[[:space:]]\{1,\}\)'\{0,1\}$old_hist/\{0,1\}'\{0,1\}[[:space:]]*\$#\1'$new_hist'#" \
+				"$old_conf" >"$new_conf.migrate"
+		) && mv -f "$new_conf.migrate" "$new_conf" && rm -f "$old_conf"
+	else
+		logger -t tmhi -p daemon.notice "tmhi already has a password set; left $old_conf alone"
+	fi
+fi
+
+# History: only from the default directory. A history_dir someone chose stays
+# where it is, and the migrated setting still points there.
+case "$hist" in "$old_hist" | "$old_hist/") move_into "$old_hist" "$new_hist" ;; esac
+
+# The daemon's state: notified, auto-reboot, unreachable, and login-failed (the
+# 15 minute hold after a failed login, so the gateway's admin account isn't
+# locked out), plus any samples not flushed yet.
+rm -f "$old_run/latest.json"
+move_into "$old_run" "$new_run"
+
+# Notification hooks. An edited 50-example replaces tmhi's; other scripts
+# move unless tmhi has one of the same name.
+d=/etc/hotplug.d/tmog4ar
+if [ -d "$d" ]; then
+	mkdir -p /etc/hotplug.d/tmhi
+	if [ -f "$d/50-example" ]; then
+		if grep -q -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$d/50-example"; then
+			mv -f "$d/50-example" /etc/hotplug.d/tmhi/50-example
+		else
+			rm -f "$d/50-example"
+		fi
+	fi
+	for f in "$d"/*; do
+		[ -f "$f" ] && [ ! -e "/etc/hotplug.d/tmhi/${f##*/}" ] && mv "$f" /etc/hotplug.d/tmhi/
+	done
+	rmdir "$d" 2>/dev/null
+fi
+
+logger -t tmhi -p daemon.notice "moved tmog4ar's settings and history to tmhi"
+
+if [ -n "$was_running" ] || [ -n "$tmhi_running" ]; then
+	/etc/init.d/tmhi start >/dev/null 2>&1
+fi
+exit 0

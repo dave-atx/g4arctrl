@@ -8,6 +8,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 - `tmhi.init`, `tmhi.config`: the procd service and the default `/etc/config/tmhi`.
 - `tmhi.hotplug`: installed as `/etc/hotplug.d/tmhi/50-example`, a notification hook that's all comments. Every file in that directory is sourced by `hotplug-call`, so it has to stay valid shell that does nothing.
 - `openwrt/tmhi/`: the package Makefile.
+- `openwrt/tmog4ar/`: transitional `tmog4ar` and `luci-app-tmog4ar` packages (tmhi was called tmog4ar until 0.4.0). They depend on the new packages, and `files/tmog4ar-to-tmhi` is a uci-defaults script that moves the old settings, history, hooks and run state over, after `apk upgrade` or at first boot after a sysupgrade. They're only for this repo's feed and images, never upstream. A few names stay `tmog4ar` on purpose: the signing key `openwrt/tmog4ar.pem` (routers have it as `/etc/apk/keys/tmog4ar.pem`), the image variants (`image-upgrade` on existing routers looks for those file names), and the repo / Pages URL (`dave-atx.github.io/g4arctrl/`).
 - `openwrt/sdk-build.sh`: CI's package build, run in the `ghcr.io/openwrt/sdk` release container, which already holds the SDK (`openwrt/gh-action-sdk` downloads it again from the OpenWrt mirrors, and a slow mirror hung CI).
 - `openwrt/luci-app-tmhi/`: the LuCI app, laid out like an app in openwrt/luci and built with `luci.mk`.
   - `htdocs/luci-static/resources/tmhi.js`: shared module (data access, health wording, charts, towers, the CSS).
@@ -30,8 +31,8 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
 
 ```sh
-shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
-shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
 npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
 for f in openwrt/luci-app-tmhi/root/usr/share/*/*/*.json; do jq empty "$f"; done
 actionlint
@@ -73,11 +74,11 @@ The CLI has to run on OpenWrt's busybox and jq builds, which are smaller than wh
 
 ## Versions and releases
 
-Keep three versions in step: `VERSION` in `tmhi`, and `PKG_VERSION` in both Makefiles. CI checks them against the tag. A `vX.Y.Z` tag builds, signs and publishes the packages to GitHub Pages and makes a release with the Pi 5 images. A `vX.Y.Z-rN` tag rebuilds only the images: CI checks `X.Y.Z` the same way, makes a release with just the images, and doesn't touch Pages. Releases are created with `--latest`, because `image-upgrade` follows GitHub's latest release and GitHub could otherwise rank `v0.2.0-r1` below `v0.2.0`.
+Keep four versions in step: `VERSION` in `tmhi`, and `PKG_VERSION` in the three Makefiles (`tmhi`, `luci-app-tmhi`, `tmog4ar`). CI checks them against the tag. A `vX.Y.Z` tag builds, signs and publishes the packages to GitHub Pages and makes a release with the Pi 5 images. A `vX.Y.Z-rN` tag rebuilds only the images: CI checks `X.Y.Z` the same way, makes a release with just the images, and doesn't touch Pages. Releases are created with `--latest`, because `image-upgrade` follows GitHub's latest release and GitHub could otherwise rank `v0.2.0-r1` below `v0.2.0`.
 
 Release notes for a `vX.Y.Z` release start with what changed in the packages, made by git-cliff (`cliff.toml`) from the commits that touch the files the packages are built from. Each such commit gives one line per `Release-note:` line it has (or its subject if it has none), written for someone who runs the router rather than someone reading the code ("History no longer shows fake tower changes after a band change"). Give user-visible changes a `Release-note:` line, and use `Release-note: none` for ones nobody would notice (refactors, comments, tests). The section (New / Fixed / Changed) comes from the subject's first word. If you add a file the packages are built from, add it to `include_paths` in `cliff.toml` as well as the cache key below. Check the notes with `git-cliff --unreleased` before tagging.
 
-CI caches the built repository, keyed on the files the packages are built from, and skips the SDK when it hits. If you add a file the packages are built from outside `openwrt/tmhi/` and `openwrt/luci-app-tmhi/`, add it to the key in `build.yml`. The Image Builder's downloads are cached too; apk checks them against the current indexes, so they can't go stale.
+CI caches the built repository, keyed on the files the packages are built from, and skips the SDK when it hits. If you add a file the packages are built from outside `openwrt/tmhi/`, `openwrt/luci-app-tmhi/` and `openwrt/tmog4ar/`, add it to the key in `build.yml`. The Image Builder's downloads are cached too; apk checks them against the current indexes, so they can't go stale.
 
 ## Testing
 

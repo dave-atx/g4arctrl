@@ -55,7 +55,8 @@ apk=/builder/staging_dir/host/bin/apk
 
 # The Image Builder indexes whatever is in packages/ alongside the official
 # feeds. That index is signed with a throwaway key that stays out of the image.
-cp "$apk_dir"/tmhi-*.apk "$apk_dir"/luci-app-tmhi-*.apk packages/
+cp "$apk_dir"/tmhi-*.apk "$apk_dir"/luci-app-tmhi-*.apk \
+	"$apk_dir"/tmog4ar-*.apk "$apk_dir"/luci-app-tmog4ar-*.apk packages/
 
 files=$(mktemp -d)
 mkdir -p "$files/etc/apk/keys" "$files/etc/apk/repositories.d"

@@ -1,7 +1,8 @@
 #!/bin/sh
-# Build tmhi and luci-app-tmhi, and a signed index, in the OpenWrt SDK
-# container. Release containers already hold the SDK, so nothing comes from
-# the OpenWrt download mirrors; the feeds come from GitHub.
+# Build tmhi and luci-app-tmhi (and the transitional tmog4ar packages), and a
+# signed index, in the OpenWrt SDK container. Release containers already hold
+# the SDK, so nothing comes from the OpenWrt download mirrors; the feeds come
+# from GitHub.
 #
 #   docker run --rm -e PRIVATE_KEY -v "$PWD:/src:ro" -v "$PWD/bin:/builder/bin" \
 #     ghcr.io/openwrt/sdk:aarch64_generic-25.12.6 sh /src/openwrt/sdk-build.sh
@@ -29,7 +30,7 @@ sed -e 's,https://git.openwrt.org/feed/,https://github.com/openwrt/,' \
 echo "src-link action /builder/src/openwrt" >>feeds.conf
 
 ./scripts/feeds update -a
-./scripts/feeds install -p action tmhi luci-app-tmhi
+./scripts/feeds install -p action tmhi luci-app-tmhi tmog4ar luci-app-tmog4ar
 make defconfig
 
 signed=
@@ -38,5 +39,6 @@ if [ -n "${PRIVATE_KEY:-}" ]; then
 	signed=y
 fi
 
-make -j"$(nproc)" package/tmhi/compile package/luci-app-tmhi/compile
+# Targets are directories: openwrt/tmog4ar/ builds both transitional packages.
+make -j"$(nproc)" package/tmhi/compile package/luci-app-tmhi/compile package/tmog4ar/compile
 make CONFIG_SIGNED_PACKAGES="$signed" package/index
