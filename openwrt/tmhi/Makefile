@@ -20,10 +20,7 @@ define Package/tmhi
   TITLE:=Status, history and stuck-band detection for T-Mobile Home Internet
   URL:=https://github.com/dave-atx/g4arctrl
   PKGARCH:=all
-  # Runtime-only dependencies: the script needs curl and jq on the device, but
-  # nothing is compiled against them, so don't make the SDK build them.
-  # curl 7.55 added -H @file, which the script uses for the auth header.
-  EXTRA_DEPENDS:=curl (>=7.55), jq (>=1.6)
+  DEPENDS:=+curl +jq
 endef
 
 define Package/tmhi/description
