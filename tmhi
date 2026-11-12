@@ -1,5 +1,5 @@
 #!/bin/sh
-# tmhi - status, history and health checks for the T-Mobile TMO-G4AR gateway
+# tmhi - status, history and health checks for T-Mobile Home Internet gateways
 #
 # Talks to the gateway's local CommonApiV1 REST API (http://192.168.12.1:8080/TMI/v1),
 # the same API zacharee/HINTControl uses. Written for OpenWrt (busybox ash + awk);
@@ -677,7 +677,7 @@ render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
 
 render_status() {
 	local mode regcol ipv6
-	printf '%s%s%s  fw %s  ·  up %s  ·  %s\n' "$BOLD" "${S_model:-TMO-G4AR}" "$RESET" \
+	printf '%s%s%s  fw %s  ·  up %s  ·  %s\n' "$BOLD" "${S_model:-Gateway}" "$RESET" \
 		"${S_firmware:-?}" "$(fmt_dur "${S_uptime:-}")" "$(date '+%Y-%m-%d %H:%M:%S')"
 	if [ -n "$FETCH_ERR" ]; then
 		printf '\n%sHealth%s  %s\n' "$BOLD" "$RESET" "$H_msg"

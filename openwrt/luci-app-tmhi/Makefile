@@ -6,7 +6,7 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for tmhi (T-Mobile TMO-G4AR gateway)
+LUCI_TITLE:=LuCI support for tmhi (T-Mobile Home Internet gateways)
 LUCI_DEPENDS:=+luci-base +tmhi
 LUCI_PKGARCH:=all
 

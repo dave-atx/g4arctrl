@@ -51,8 +51,8 @@ body:
   - type: input
     id: gateway
     attributes:
-      label: Gateway firmware
-      description: The `fw` value on the first line of `tmhi status` (or Status → Cellular → Gateway)
+      label: Gateway model and firmware
+      description: The model and `fw` value on the first line of `tmhi status` (or Status → Cellular → Gateway)
       placeholder: TMO-G4AR 1.00.18
 
   - type: dropdown

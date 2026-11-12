@@ -1,6 +1,6 @@
 # tmhi
 
-Status, history and "is it stuck?" checks for the T-Mobile Home Internet **TMO-G4AR** (Arcadyan) gateway, for an OpenWrt router sitting behind it. There's a LuCI app for the router's web interface and a command line tool underneath it.
+Status, history and "is it stuck?" checks for a **T-Mobile Home Internet** gateway, for an OpenWrt router sitting behind it. There's a LuCI app for the router's web interface and a command line tool underneath it.
 
 tmhi used to be called tmog4ar; see [Upgrading from tmog4ar](#upgrading-from-tmog4ar).
 
@@ -27,6 +27,7 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
 ## What you need
 
 - **OpenWrt 25.12 or newer.** The packages are `.apk` files, which is the package format from 25.12 on; 24.10 and older use opkg and I don't build for them. Any router model works (the packages are architecture-independent).
+- A gateway with T-Mobile's local API. It's developed and tested on the Arcadyan **TMO-G4AR**. The Arcadyan KVD21, Sagemcom Fast 5688W and Sercomm TMO-G4SE use the same API and should work; if you have one, please [say how it went](https://github.com/dave-atx/g4arctrl/issues/new?template=gateway_report.yml), working or not. The Nokia 5G21 uses a different API and isn't supported.
 - The router's WAN port plugged into one of the gateway's LAN ports, so the router can reach the gateway at `192.168.12.1`. That's the normal setup. If your gateway uses a different address, you can change it in Settings.
 - The gateway's **admin password** (the one for its web page at `http://192.168.12.1`). It's printed on the label on the back of the gateway, unless you've changed it. Without it you still get the band, signal and history, but not the channel width, PCI / channel / CQI, or the reboot button.
 

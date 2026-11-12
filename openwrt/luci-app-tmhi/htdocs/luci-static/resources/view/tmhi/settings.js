@@ -11,7 +11,7 @@ return view.extend({
 
 	render(wan) {
 		const m = new form.Map('tmhi', _('Cellular gateway'),
-			_('Settings for tmhi, which samples the T-Mobile TMO-G4AR gateway once a minute. Saving restarts the sampler.'));
+			_('Settings for tmhi, which samples the T-Mobile Home Internet gateway once a minute. Saving restarts the sampler.'));
 
 		const s = m.section(form.NamedSection, 'main', 'tmhi');
 		s.addremove = false;

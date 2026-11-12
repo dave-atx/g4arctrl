@@ -23,7 +23,7 @@ REPO_DIR:=$(CURDIR)/../..
 define Package/tmhi
   SECTION:=utils
   CATEGORY:=Utilities
-  TITLE:=Status, history and stuck-band detection for the T-Mobile TMO-G4AR
+  TITLE:=Status, history and stuck-band detection for T-Mobile Home Internet
   URL:=https://github.com/dave-atx/g4arctrl
   PKGARCH:=all
   # Runtime-only dependencies: the script needs curl and jq on the device, but
@@ -34,7 +34,8 @@ endef
 
 define Package/tmhi/description
   Shows band, channel width and signal quality from a T-Mobile Home Internet
-  TMO-G4AR (Arcadyan) gateway, logs them once a minute, and tells you when the
+  gateway (Arcadyan KVD21 / TMO-G4AR, Sagemcom Fast 5688W, Sercomm TMO-G4SE)
+  on the router's WAN side, logs them once a minute, and tells you when the
   gateway has been stuck on the wrong band long enough to need a reboot.
 endef
 

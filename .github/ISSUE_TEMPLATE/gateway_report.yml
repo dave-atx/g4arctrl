@@ -1,0 +1,63 @@
+name: Another gateway model
+description: Report how tmhi works (or doesn't) with a gateway other than the TMO-G4AR
+labels: [gateway]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        tmhi is tested on the Arcadyan TMO-G4AR. The KVD21, Sagemcom Fast 5688W and Sercomm TMO-G4SE use the same local API, so they should work, but the details of what each one reports can differ. A report from one of them, working or not, helps.
+
+        Before pasting anything below, **remove anything that could locate you**: tower numbers (`gNBID`, `eNBID`), cell IDs (`cid`, `ecgi`, `nci`), `tac`, the GPS position (`gps`, `latitude`, `longitude`), serial numbers, MAC addresses, IMEI / IMSI / ICCID, and public IP or IPv6 addresses. Replace numbers with something like `1234567`. Never paste your gateway's admin password.
+
+  - type: input
+    id: model
+    attributes:
+      label: Gateway model and firmware
+      description: The first line of `tmhi status`, or the label on the gateway
+      placeholder: TMO-G4SE 1.2.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: works
+    attributes:
+      label: Does it work?
+      options:
+        - Yes, everything looks right
+        - Mostly; some values are missing or wrong
+        - No
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What's missing or wrong?
+
+  - type: input
+    id: version
+    attributes:
+      label: tmhi version
+      description: Output of `tmhi version`
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `tmhi status`
+      render: text
+
+  - type: textarea
+    id: gateway
+    attributes:
+      label: Output of `tmhi raw gateway`
+      description: No password needed. Remove the values listed above first.
+      render: json
+
+  - type: textarea
+    id: cell
+    attributes:
+      label: Output of `tmhi raw cell`
+      description: Needs the admin password set. **Includes the gateway's GPS position and your tower numbers; remove them.**
+      render: json

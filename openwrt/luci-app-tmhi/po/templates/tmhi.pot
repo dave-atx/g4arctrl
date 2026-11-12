@@ -783,7 +783,7 @@ msgstr ""
 
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:14
 msgid ""
-"Settings for tmhi, which samples the T-Mobile TMO-G4AR gateway once a "
+"Settings for tmhi, which samples the T-Mobile Home Internet gateway once a "
 "minute. Saving restarts the sampler."
 msgstr ""
 
