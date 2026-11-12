@@ -1,24 +1,18 @@
-# OpenWrt package for tmhi. Build it with the OpenWrt SDK by adding this
-# directory's parent as a feed:
-#   echo "src-link tmhi /path/to/g4arctrl/openwrt" >> feeds.conf
-#   ./scripts/feeds update tmhi && ./scripts/feeds install tmhi
-#   make package/tmhi/compile
-
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tmhi
 PKG_VERSION:=0.3.4
 PKG_RELEASE:=1
 
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+PKG_SOURCE_URL:=https://github.com/dave-atx/g4arctrl/releases/download/v$(PKG_VERSION)
+PKG_HASH:=3cf2c119668d8f5db0ed630613dde06a28a24eff32125d74cdc934319743d2ee
+
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Dave Marquard <dave@marquard.org>
 
 include $(INCLUDE_DIR)/package.mk
-
-# The files live at the top of the repository. CURDIR is the real path even
-# when the SDK reaches this directory through a feed symlink.
-REPO_DIR:=$(CURDIR)/../..
 
 define Package/tmhi
   SECTION:=utils
@@ -56,21 +50,17 @@ if [ -z "$${IPKG_INSTROOT}" ] && [ "$${PKG_UPGRADE}" = 1 ] && /etc/init.d/tmhi r
 fi
 endef
 
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-endef
-
 define Build/Compile
 endef
 
 define Package/tmhi/install
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/config $(1)/etc/hotplug.d/tmhi $(1)/lib/upgrade/keep.d
-	$(INSTALL_BIN) $(REPO_DIR)/tmhi $(1)/usr/bin/tmhi
-	$(INSTALL_BIN) $(REPO_DIR)/tmhi.init $(1)/etc/init.d/tmhi
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/tmhi $(1)/usr/bin/tmhi
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/tmhi.init $(1)/etc/init.d/tmhi
 	# INSTALL_CONF is mode 600: the file holds the gateway's admin password.
-	$(INSTALL_CONF) $(REPO_DIR)/tmhi.config $(1)/etc/config/tmhi
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/tmhi.config $(1)/etc/config/tmhi
 	# Notification hooks: an example that does nothing until edited.
-	$(INSTALL_DATA) $(REPO_DIR)/tmhi.hotplug $(1)/etc/hotplug.d/tmhi/50-example
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/tmhi.hotplug $(1)/etc/hotplug.d/tmhi/50-example
 	# Keep history (the default history_dir) and every notification hook,
 	# including ones added by hand, across sysupgrade.
 	printf '%s\n' /root/.tmhi/ /etc/hotplug.d/tmhi/ > $(1)/lib/upgrade/keep.d/tmhi

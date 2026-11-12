@@ -30,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
-          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/image/*.sh openwrt/image/image-upgrade
+          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
+          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
@@ -69,7 +69,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: repo
-          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'tmhi.init', 'tmhi.config', 'tmhi.hotplug', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**', 'openwrt/tmog4ar/**', 'openwrt/sdk-build.sh') }}
+          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'tmhi.init', 'tmhi.config', 'tmhi.hotplug', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**', 'openwrt/tmog4ar/**', 'openwrt/sdk-build.sh', 'openwrt/source-tarball.sh', 'LICENSE') }}
 
       # Both packages are noarch, so any SDK will do. The LuCI app is built
       # with luci.mk, so the default feeds (which include luci) stay on.
@@ -80,10 +80,12 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         env:
           PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          # A release's source archive has to match PKG_HASH.
+          RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
         run: |
           mkdir -p bin
           chmod 777 bin
-          docker run --rm -e PRIVATE_KEY -v "$PWD:/src:ro" -v "$PWD/bin:/builder/bin" \
+          docker run --rm -e PRIVATE_KEY -e RELEASE -v "$PWD:/src:ro" -v "$PWD/bin:/builder/bin" \
             "ghcr.io/openwrt/sdk:aarch64_generic-$OPENWRT_VERSION" \
             sh /src/openwrt/sdk-build.sh
 
@@ -96,6 +98,7 @@ jobs:
              bin/packages/aarch64_generic/action/luci-app-tmhi-*.apk \
              bin/packages/aarch64_generic/action/tmog4ar-*.apk \
              bin/packages/aarch64_generic/action/luci-app-tmog4ar-*.apk \
+             bin/source/tmhi-*.tar.xz \
              openwrt/tmog4ar.pem repo/
           ls -l repo
 
@@ -263,7 +266,7 @@ jobs:
         run: |
           case $GITHUB_REF_NAME in
             *-r[0-9]*) set -- ;;
-            *) set -- repo/tmhi-*.apk repo/luci-app-tmhi-*.apk repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmog4ar.pem ;;
+            *) set -- repo/tmhi-*.apk repo/luci-app-tmhi-*.apk repo/tmog4ar-*.apk repo/luci-app-tmog4ar-*.apk repo/tmhi-*.tar.xz repo/tmog4ar.pem ;;
           esac
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "$GITHUB_REF_NAME" --latest \
