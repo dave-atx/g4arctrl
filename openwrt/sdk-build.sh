@@ -2,7 +2,7 @@
 # Build tmhi and luci-app-tmhi (and the transitional tmog4ar packages), and a
 # signed index, in the OpenWrt SDK container. Release containers already hold
 # the SDK, so nothing comes from the OpenWrt download mirrors; the feeds come
-# from GitHub.
+# from GitHub. Snapshot containers (sdk:<arch>-main) download the SDK first.
 #
 #   docker run --rm -e PRIVATE_KEY -v "$PWD:/src:ro" -v "$PWD/bin:/builder/bin" \
 #     ghcr.io/openwrt/sdk:aarch64_generic-25.12.6 sh /src/openwrt/sdk-build.sh
@@ -14,8 +14,11 @@
 set -eu
 
 cd /builder
+if [ ! -d scripts ] && [ -x setup.sh ]; then
+	./setup.sh
+fi
 [ -d scripts ] || {
-	echo "this container has no SDK (a snapshot one?)" >&2
+	echo "this container has no SDK" >&2
 	exit 1
 }
 

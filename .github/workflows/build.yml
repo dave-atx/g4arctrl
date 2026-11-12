@@ -125,6 +125,36 @@ jobs:
           name: repo
           path: repo/
 
+  # The packages also have to build and install on OpenWrt main (to go
+  # upstream). Nothing waits for this job: the snapshot SDK container
+  # downloads the SDK from the OpenWrt mirrors, which can be slow.
+  package-main:
+    name: package (main)
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build with the OpenWrt SDK (main)
+        run: |
+          mkdir -p bin
+          chmod 777 bin
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/bin:/builder/bin" \
+            ghcr.io/openwrt/sdk:aarch64_generic-main sh /src/openwrt/sdk-build.sh
+
+      - name: Install on OpenWrt main
+        run: |
+          docker run --rm -v "$PWD/bin/packages/aarch64_generic/action:/repo:ro" \
+            ghcr.io/openwrt/rootfs:x86_64-main sh -c '
+              set -e
+              # procd init scripts lock here; without it, rpcd post-installs fail.
+              mkdir -p /var/lock
+              apk update
+              apk add --allow-untrusted /repo/tmhi-*.apk /repo/luci-app-tmhi-*.apk
+              tmhi version
+              uci -q get tmhi.main.host'
+
   image:
     name: rpi-5 images
     needs: package

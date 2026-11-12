@@ -218,7 +218,7 @@ cp tmhi.config /etc/config/tmhi && chmod 600 /etc/config/tmhi
 
 ### Building the packages
 
-With the [OpenWrt SDK](https://openwrt.org/docs/guide-developer/using_the_sdk) for 25.12 (any target). The LuCI app builds with `luci.mk`, so keep the default feeds, which include luci:
+With the [OpenWrt SDK](https://openwrt.org/docs/guide-developer/using_the_sdk) for 25.12 or main (any target). The LuCI app builds with `luci.mk`, so keep the default feeds, which include luci:
 
 ```sh
 echo "src-link tmhi /path/to/g4arctrl/openwrt" >> feeds.conf
@@ -226,7 +226,7 @@ echo "src-link tmhi /path/to/g4arctrl/openwrt" >> feeds.conf
 make defconfig && make package/tmhi/compile package/luci-app-tmhi/compile
 ```
 
-CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile`, `openwrt/luci-app-tmhi/Makefile` and `openwrt/tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds the packages and the Pi 5 images on every push, and checks that the packages also build and install on OpenWrt main. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile`, `openwrt/luci-app-tmhi/Makefile` and `openwrt/tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
 
 ### Changing the images
 
