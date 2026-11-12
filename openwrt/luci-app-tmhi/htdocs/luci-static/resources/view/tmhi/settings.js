@@ -115,7 +115,7 @@ return view.extend({
 
 		o = s.taboption('history', form.Value, 'history_dir', _('History directory'),
 			_('One file per day. Only the default is kept across sysupgrade.'));
-		o.placeholder = '/root/.tmhi';
+		o.placeholder = '/etc/tmhi';
 		o.rmempty = true;
 
 		o = s.taboption('history', form.Value, 'retention_days', _('Keep history for'), _('Days.'));

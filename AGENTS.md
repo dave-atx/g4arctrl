@@ -19,7 +19,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 
 ## How the pieces talk
 
-- The service runs `tmhi daemon`: one sample a minute, buffered in RAM (`/var/run/tmhi/history.buf`), written to `history_dir` (default `/root/.tmhi/`, one TSV file per day) every `flush_minutes`. Each sample, with its health, is also written to `/var/run/tmhi/latest.json`.
+- The service runs `tmhi daemon`: one sample a minute, buffered in RAM (`/var/run/tmhi/history.buf`), written to `history_dir` (default `/etc/tmhi/`, one TSV file per day) every `flush_minutes`. Each sample, with its health, is also written to `/var/run/tmhi/latest.json`.
 - LuCI never talks to the gateway itself. It reads `latest.json`, and runs `tmhi status --json --max-age 15` (Refresh), `tmhi history --json -s N` and `tmhi reboot --force` through rpcd's `file.exec`. rpcd matches the ACL against the full command line, so a new CLI flag the UI needs means an ACL change too.
 - There's no ucode rpcd plugin on purpose: those run in rpcd's main loop, and a history or reboot call can take seconds. `file.exec` is asynchronous.
 - The daemon also sends notifications (`notify()`): syslog, a ubus event and `hotplug-call tmhi`. It never sends anything off the router itself; that's left to hook scripts. "Notified" and pending-auto-reboot state lives in `/var/run/tmhi/` (`notified`, `auto-reboot`), so a daemon restart doesn't notify twice. Gateway not answering / back and manual reboots go to syslog only (`syslog()`, with a priority), via `unreachable` in the same directory.

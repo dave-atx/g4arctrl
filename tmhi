@@ -39,7 +39,7 @@ PORT=$(cfg_int port 8080)
 TIMEOUT=$(cfg_int timeout 10)
 ADMIN_USER=$(cfg username admin)
 ADMIN_PASS=$(cfg password '')
-HISTORY_DIR=$(cfg history_dir /root/.tmhi)
+HISTORY_DIR=$(cfg history_dir /etc/tmhi)
 FLUSH_MINUTES=$(cfg_int flush_minutes 60)
 RETENTION_DAYS=$(cfg_int retention_days 30)
 PREFERRED_BANDS=$(cfg preferred_band n41)
@@ -1591,7 +1591,7 @@ Settings are UCI options in /etc/config/tmhi, section "main":
   min_bw          narrowest healthy channel in MHz (40)
   stuck_minutes   minutes off the preferred band before a reboot is
                   recommended (30)
-  history_dir     where daily history files go (/root/.tmhi)
+  history_dir     where daily history files go (/etc/tmhi)
   retention_days  days of history to keep (30)
   flush_minutes   how often buffered samples go to flash (60; 0 = every
                   sample). A crash or power cut loses at most this much.

@@ -11,7 +11,7 @@
 old_conf=/etc/config/tmog4ar
 new_conf=/etc/config/tmhi
 old_hist=/root/.tmog4ar
-new_hist=/root/.tmhi
+new_hist=/etc/tmhi
 old_run=/tmp/tmog4ar-0
 new_run=/var/run/tmhi
 

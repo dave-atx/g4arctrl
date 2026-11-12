@@ -63,7 +63,7 @@ Your settings and history are kept.
 
 ### Upgrading from tmog4ar
 
-tmog4ar was renamed tmhi in 0.4.0. `apk upgrade` (or `image-upgrade -v tmhi upgrade` on the Pi images; see [Upgrading](#upgrading)) moves you over: the `tmog4ar` and `luci-app-tmog4ar` packages become empty ones that install `tmhi` and `luci-app-tmhi`, and the first time they're installed they move your settings (`/etc/config/tmhi`), history (`/root/.tmhi/`, if you kept the default `history_dir`) and notification scripts (`/etc/hotplug.d/tmhi/`) across. Afterwards you can remove them with `apk del tmog4ar luci-app-tmog4ar`; `tmog4ar` stays a shortcut for `tmhi` until you do.
+tmog4ar was renamed tmhi in 0.4.0. `apk upgrade` (or `image-upgrade -v tmhi upgrade` on the Pi images; see [Upgrading](#upgrading)) moves you over: the `tmog4ar` and `luci-app-tmog4ar` packages become empty ones that install `tmhi` and `luci-app-tmhi`, and the first time they're installed they move your settings (`/etc/config/tmhi`), history (`/etc/tmhi/`, if you kept the default `history_dir`) and notification scripts (`/etc/hotplug.d/tmhi/`) across. Afterwards you can remove them with `apk del tmog4ar luci-app-tmog4ar`; `tmog4ar` stays a shortcut for `tmhi` until you do.
 
 What changes for you: the page is still Status → Cellular. The command is `tmhi`, the syslog tag and ubus event are `tmhi` (`logread -e tmhi`, `ubus listen tmhi`), and hook scripts run from `/etc/hotplug.d/tmhi/`. Anything of your own that watches for `tmog4ar` in the log or listens for the `tmog4ar` ubus event needs the new name.
 
@@ -85,7 +85,7 @@ You won't get updates through `apk upgrade` this way.
 apk del luci-app-tmhi tmhi
 ```
 
-History stays in `/root/.tmhi/` and settings in `/etc/config/tmhi` until you delete them.
+History stays in `/etc/tmhi/` and settings in `/etc/config/tmhi` until you delete them.
 
 ## Using it
 

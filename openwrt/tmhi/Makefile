@@ -60,7 +60,7 @@ define Package/tmhi/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/tmhi.hotplug $(1)/etc/hotplug.d/tmhi/50-example
 	# Keep history (the default history_dir) and every notification hook,
 	# including ones added by hand, across sysupgrade.
-	printf '%s\n' /root/.tmhi/ /etc/hotplug.d/tmhi/ > $(1)/lib/upgrade/keep.d/tmhi
+	printf '%s\n' /etc/tmhi/ /etc/hotplug.d/tmhi/ > $(1)/lib/upgrade/keep.d/tmhi
 endef
 
 $(eval $(call BuildPackage,tmhi))
