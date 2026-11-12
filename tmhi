@@ -1,0 +1,1664 @@
+#!/bin/sh
+# tmhi - status, history and health checks for the T-Mobile TMO-G4AR gateway
+#
+# Talks to the gateway's local CommonApiV1 REST API (http://192.168.12.1:8080/TMI/v1),
+# the same API zacharee/HINTControl uses. Written for OpenWrt (busybox ash + awk);
+# also runs under dash and bash. Requires curl and jq.
+#
+# shellcheck shell=sh disable=SC3043,SC2154
+# SC3043: 'local' works in busybox ash, dash and bash.
+# SC2154: S_* and H_* variables are assigned by eval of jq/awk output.
+
+set -eu
+umask 077
+
+VERSION=0.3.4 # keep in step with PKG_VERSION in openwrt/tmhi/Makefile
+
+# Settings live in UCI: /etc/config/tmhi, section "main" (see tmhi.config).
+# Without uci (not OpenWrt), everything takes its default.
+HAVE_UCI=0
+if command -v uci >/dev/null 2>&1; then HAVE_UCI=1; fi
+cfg() { # OPTION DEFAULT
+	local v=''
+	if [ "$HAVE_UCI" = 1 ]; then v=$(uci -q get "tmhi.main.$1" 2>/dev/null) || v=''; fi
+	printf '%s' "${v:-$2}"
+}
+cfg_int() { # OPTION DEFAULT
+	local v
+	v=$(cfg "$1" "$2")
+	case "$v" in '' | *[!0-9]*)
+		printf 'tmhi: tmhi.main.%s is not a whole number (%s); using %s\n' "$1" "$v" "$2" >&2
+		v=$2
+		;;
+	esac
+	printf '%s' "$v"
+}
+
+HOST=$(cfg host 192.168.12.1)
+PORT=$(cfg_int port 8080)
+TIMEOUT=$(cfg_int timeout 10)
+ADMIN_USER=$(cfg username admin)
+ADMIN_PASS=$(cfg password '')
+HISTORY_DIR=$(cfg history_dir /root/.tmhi)
+FLUSH_MINUTES=$(cfg_int flush_minutes 60)
+RETENTION_DAYS=$(cfg_int retention_days 30)
+PREFERRED_BANDS=$(cfg preferred_band n41)
+MIN_BW=$(cfg_int min_bw 40)
+STUCK_MINUTES=$(cfg_int stuck_minutes 30)
+UNITS=$(cfg units imperial) # distances in mi (imperial) or km (metric)
+AUTO_REBOOT=$(cfg_int auto_reboot 0)
+AR_START=$(cfg_int auto_reboot_start 2) # hour, router local time
+AR_END=$(cfg_int auto_reboot_end 5)     # hour, not included
+AR_IDLE_KBIT=$(cfg_int auto_reboot_idle_kbit 1000)
+AR_IDLE_MINUTES=$(cfg_int auto_reboot_idle_minutes 15)
+WAN_DEVICE=$(cfg wan_device '') # empty: the wan interface's device
+
+BASE="http://${HOST}:${PORT}/TMI/v1"
+RUN_DIR="${TMPDIR:-/tmp}/tmhi-$(id -u)"
+TOKEN_FILE="$RUN_DIR/auth-header"
+# Samples collect here (RAM on OpenWrt) and go to flash in one append per
+# flush_minutes, to keep small writes off the SD card.
+BUFFER="$RUN_DIR/history.buf"
+# The newest sample and its health as JSON, rewritten by every sample. LuCI
+# reads it instead of asking the gateway.
+LATEST="$RUN_DIR/latest.json"
+LOGIN_BACKOFF=900 # after a failed login, don't try again for this long (avoid lockouts)
+GAP=900           # a gap this long between history samples breaks a "degraded since" streak
+LOOKBACK=604800   # a good sample this recent proves the preferred band is reachable here
+AR_SPACING=72000  # at most one automatic reboot in this long (once a night)
+# Gateway reboots, one per line: ts, "reboot", auto|manual, ok|noanswer|failed,
+# the band before. On flash with the history; history output shows them.
+EVENTS="$HISTORY_DIR/events.tsv"
+
+COLS='ts reg nr_bands nr_bw nr_rsrp nr_rsrq nr_sinr nr_rssi nr_bars nr_cqi nr_pci nr_arfcn nr_nb nr_cid lte_bands lte_bw lte_rsrp lte_rsrq lte_sinr lte_rssi lte_bars lte_cqi lte_pci lte_arfcn lte_nb lte_cid uptime'
+HEADER=$(printf '%s' "$COLS" | tr ' ' '\t')
+
+ESC=$(printf '\033')
+if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && [ -z "${NO_COLOR:-}" ]; then
+	RED="${ESC}[31m" GREEN="${ESC}[32m" YELLOW="${ESC}[33m" BOLD="${ESC}[1m" DIM="${ESC}[2m" RESET="${ESC}[0m"
+else
+	RED='' GREEN='' YELLOW='' BOLD='' DIM='' RESET=''
+fi
+
+TMP=''
+WATCHING=0
+
+err() { printf 'tmhi: %s\n' "$1" >&2; }
+die() {
+	err "$1"
+	exit 1
+}
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (apk add $1)"; }
+
+cleanup() {
+	if [ "$WATCHING" = 1 ]; then printf '%s[?25h' "$ESC"; fi
+	if [ -n "$TMP" ]; then rm -rf "$TMP"; fi
+}
+
+init() {
+	need curl
+	need jq
+	TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmhi.XXXXXX") || die "cannot create a temp directory"
+	trap cleanup EXIT
+	trap 'exit 130' INT TERM HUP
+	load_towers
+}
+
+# ---------------------------------------------------------------------------
+# Named towers: UCI "tower" sections (radio nr|lte, id, name, lat, lon), so
+# output can say "Water tower, 1.3 mi NE" instead of a bare gNB number.
+
+# Reads `uci show` output: one tower per line as radio, id, name, lat, lon.
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_UCI_TOWERS='
+{
+	key = $1; val = substr($0, length($1) + 2)
+	n = split(key, k, ".")
+	if (n == 2) {
+		if (val == "tower" && !(k[2] in T)) { T[k[2]] = 1; ord[++no] = k[2] }
+		next
+	}
+	if (n != 3) next
+	if (val ~ /^\047.*\047$/) val = substr(val, 2, length(val) - 2)
+	gsub("\047\\\\\047\047", "\047", val)   # uci quotes a quote as quote-backslash-quote-quote
+	gsub(/\t/, " ", val)
+	V[k[2], k[3]] = val
+}
+END {
+	for (i = 1; i <= no; i++) {
+		s = ord[i]
+		if (V[s, "id"] == "") continue
+		r = V[s, "radio"]; if (r == "") r = "nr"
+		print r "\t" V[s, "id"] "\t" V[s, "name"] "\t" V[s, "lat"] "\t" V[s, "lon"]
+	}
+}
+'
+
+TOWERS=''
+load_towers() {
+	TOWERS="$TMP/towers.tsv"
+	: >"$TOWERS"
+	if [ "$HAVE_UCI" = 1 ]; then
+		uci -q show tmhi 2>/dev/null | awk -F= "$AWK_UCI_TOWERS" >"$TOWERS" || true
+	fi
+}
+
+# ---------------------------------------------------------------------------
+# HTTP
+
+# http_get PATH OUTFILE [auth] -> prints the HTTP status ("000" = no response)
+http_get() {
+	if [ "${3:-}" = auth ]; then
+		curl -s -o "$2" -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			-H "@$TOKEN_FILE" "$BASE/$1" 2>/dev/null || true
+	else
+		curl -s -o "$2" -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			"$BASE/$1" 2>/dev/null || true
+	fi
+}
+
+# creds_id: a fingerprint of the configured username and password, so a failed
+# login only holds back retries with those same credentials
+creds_id() {
+	printf '%s:%s' "$ADMIN_USER" "$ADMIN_PASS" | md5sum | cut -c1-32
+}
+
+# login [force] -> caches "Authorization: Bearer ..." in $TOKEN_FILE
+login() {
+	local now last who resp token id
+	if [ -z "$ADMIN_PASS" ]; then return 1; fi
+	mkdir -p "$RUN_DIR"
+	now=$(date +%s)
+	id=$(creds_id)
+	last=0 who=''
+	if [ -r "$RUN_DIR/login-failed" ]; then read -r last who <"$RUN_DIR/login-failed" || true; fi
+	case "$last" in '' | *[!0-9]*) last=0 ;; esac
+	if [ "${1:-}" != force ] && [ "$who" = "$id" ] && [ $((now - last)) -lt "$LOGIN_BACKOFF" ]; then return 1; fi
+
+	# Credentials go over stdin so they never show up in `ps`.
+	resp=$(jq -n --arg u "$ADMIN_USER" --arg p "$ADMIN_PASS" '{username: $u, password: $p}' |
+		curl -s --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" -X POST \
+			-H 'Content-Type: application/json' -H 'Accept: application/json' \
+			--data-binary @- "$BASE/auth/login" 2>/dev/null) || true
+	token=$(printf '%s' "$resp" | jq -r '.auth.token // empty' 2>/dev/null) || token=''
+	if [ -z "$token" ]; then
+		echo "$now $id" >"$RUN_DIR/login-failed"
+		err "admin login failed (check tmhi.main.username and password); not retrying these for $((LOGIN_BACKOFF / 60))m"
+		return 1
+	fi
+	rm -f "$RUN_DIR/login-failed"
+	printf 'Authorization: Bearer %s\n' "$token" >"$TOKEN_FILE.$$"
+	mv "$TOKEN_FILE.$$" "$TOKEN_FILE"
+}
+
+# auth_get PATH OUTFILE -> 0 on success; sets AUTH_STATE to nocreds|failed|ok
+auth_get() {
+	local code
+	AUTH_STATE=nocreds
+	if [ -z "$ADMIN_PASS" ]; then return 1; fi
+	AUTH_STATE=failed
+	if [ ! -s "$TOKEN_FILE" ]; then login || return 1; fi
+	code=$(http_get "$1" "$2" auth)
+	case "$code" in
+	401 | 403)
+		login || return 1
+		code=$(http_get "$1" "$2" auth)
+		;;
+	esac
+	case "$code" in
+	2??) jq -e 'type == "object"' "$2" >/dev/null 2>&1 || return 1 ;;
+	*) return 1 ;;
+	esac
+	AUTH_STATE=ok
+}
+
+# ---------------------------------------------------------------------------
+# Sampling
+
+# Merges gateway/?get=all (unauthenticated) with network/telemetry/?get=cell
+# (admin only; the only place channel width, PCI, ARFCN and CQI appear) into one
+# flat record. Output is either JSON or shell assignments (S_<field>=...) plus
+# S_tsv, the record as a history line.
+# shellcheck disable=SC2016 # jq program, not shell
+JQ_SAMPLE='
+# No regex here: OpenWrt builds jq without oniguruma, so scan/test/gsub are unavailable.
+def digits: explode | map(if . >= 48 and . <= 57 then . else 32 end) | implode;
+def bw: [tostring | digits | split(" ")[] | select(. != "") | tonumber] | if length > 0 then add else null end;
+def oneline: explode | map(if . == 9 or . == 10 or . == 13 then 32 else . end) | implode;
+def nonempty: if . == "" then null else . end;
+def rat($s; $c; $p):
+  ($c.sector // {}) as $x
+  | {
+      bands: (($s.bands // $x.bands // []) | join(",") | nonempty),
+      bw: ($c.bandwidth | bw),
+      bw_raw: $c.bandwidth,
+      rsrp: ($s.rsrp // $x.rsrp),
+      rsrq: ($s.rsrq // $x.rsrq),
+      sinr: ($s.sinr // $x.sinr),
+      rssi: ($s.rssi // $x.rssi),
+      bars: ($s.bars // $x.bars),
+      cqi: $c.cqi,
+      pci: $c.pci,
+      arfcn: $c.earfcn,
+      nb: ($s.gNBID // $s.eNBID // $x.gNBID // $x.eNBID),
+      cid: ($s.cid // $x.cid),
+      antenna: ($s.antennaUsed // $x.antennaUsed),
+      tac: $c.tac,
+      mcc: $c.mcc,
+      mnc: $c.mnc
+    }
+  | with_entries(.key = $p + .key);
+($g[0] // {}) as $g
+| ($c[0].cell // {}) as $c
+| ($g.signal // {}) as $s
+| ($s.generic // $c.generic // {}) as $gen
+| {
+    ts: ($ts | tonumber),
+    reg: (if $reg != "" then $reg else ($gen.registration // "unknown") end),
+    apn: $gen.apn,
+    ipv6: $gen.hasIPv6,
+    roaming: $gen.roaming,
+    uptime: $g.time.upTime,
+    model: $g.device.model,
+    firmware: $g.device.softwareVersion,
+    # The position the gateway reports for itself (admin only); used for the
+    # distance and direction to named towers.
+    gps_lat: ($c.gps // {}).latitude,
+    gps_lon: ($c.gps // {}).longitude,
+    auth: $auth
+  }
+  + rat($s."5g" // {}; $c."5g" // {}; "nr_")
+  + rat($s."4g" // {}; $c."4g" // {}; "lte_")
+| . as $o
+| if $mode == "json" then .
+  else
+    (to_entries[] | "S_\(.key)=\(.value // "" | tostring | @sh)"),
+    "S_tsv=\([($cols | split(" "))[] | $o[.] // "-" | tostring | oneline] | join("\t") | @sh)"
+  end
+'
+
+jq_sample() { # MODE (shell|json)
+	jq -nr --slurpfile g "$TMP/gw.json" --slurpfile c "$TMP/cell.json" \
+		--arg ts "$TS" --arg reg "$REG_OVERRIDE" --arg mode "$1" --arg cols "$COLS" \
+		--arg auth "$AUTH_STATE" "$JQ_SAMPLE"
+}
+
+# collect: one sample from the gateway into S_* variables. An unreachable gateway
+# is not fatal: it becomes a sample with reg=unreachable and FETCH_ERR set.
+collect() {
+	local code out
+	TS=$(date +%s)
+	FETCH_ERR=''
+	REG_OVERRIDE=''
+	AUTH_STATE=nocreds
+	code=$(http_get 'gateway/?get=all' "$TMP/gw.json")
+	case "$code" in
+	2??) jq -e 'type == "object"' "$TMP/gw.json" >/dev/null 2>&1 || FETCH_ERR="unparseable response from gateway" ;;
+	000) FETCH_ERR="gateway ${HOST}:${PORT} unreachable" ;;
+	*) FETCH_ERR="HTTP $code from gateway" ;;
+	esac
+	echo '{}' >"$TMP/cell.json"
+	if [ -n "$FETCH_ERR" ]; then
+		echo '{}' >"$TMP/gw.json"
+		REG_OVERRIDE=unreachable
+	elif ! auth_get 'network/telemetry/?get=cell' "$TMP/cell.json"; then
+		echo '{}' >"$TMP/cell.json"
+	fi
+	out=$(jq_sample shell) || die "could not parse gateway response"
+	eval "$out"
+}
+
+# ---------------------------------------------------------------------------
+# Shared awk: history line parsing and the definition of a "good" sample
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_LIB='
+BEGIN {
+	FS = "\t"
+	npref = split(pref, P, /[ ,]+/)
+	prefstr = pref; gsub(/^[ ,]+|[ ,]+$/, "", prefstr); gsub(/[ ,]+/, "/", prefstr)
+	PI = atan2(0, -1)
+	if (towerfile != "") while ((getline tl < towerfile) > 0) {
+		split(tl, TW, "\t")
+		TN[TW[1] ":" TW[2]] = TW[3]; TLAT[TW[1] ":" TW[2]] = TW[4]; TLON[TW[1] ":" TW[2]] = TW[5]
+	}
+	# Gateway reboots (events.tsv), oldest first; the history readers merge them
+	# into their changes with rbnext().
+	nrb = 0; rbi = 1
+	if (eventfile != "") while ((getline el < eventfile) > 0) {
+		split(el, EL, "\t")
+		if (EL[2] == "reboot" && EL[1] ~ /^[0-9]+$/) { nrb++; RBT[nrb] = EL[1] + 0; RBS[nrb] = EL[3]; RBR[nrb] = EL[4]; RBK[nrb] = EL[5] }
+	}
+}
+# The next reboot at or before t not yet shown, skipping those before since:
+# returns its index, or 0.
+function rbnext(t) {
+	while (rbi <= nrb && RBT[rbi] < since) rbi++
+	if (rbi <= nrb && RBT[rbi] <= t) return rbi++
+	return 0
+}
+$1 == "ts" { delete C; for (i = 1; i <= NF; i++) C[$i] = i; next }
+$1 !~ /^[0-9]+$/ { next }
+function f(k) { return (k in C) ? $(C[k]) : "-" }
+# The serving tower of this sample: its radio (nr|lte) in TRAD, its id returned.
+# The gateway sometimes reports the tower id with one bit missing for a few
+# minutes (seen: gNB 1234567 as 185991, bit 20) while the PCI and channel stay
+# exactly the same. That is not a move: keep the previous id. After a move it
+# can also repeat an id (and cell id) from the previous tower, one bit off,
+# for a sample or two while still on the new one. So on the same PCI and
+# channel: one bit off the current id with the same cell id holds as long as
+# it lasts (the original glitch); any other id holds for 5 samples and is then
+# taken as real (a cell moved to a new gNB id keeps its PCI and channel). An
+# id seen only once does not hold: right after a move the first sample can
+# report yet another id before the right one.
+function servtower(   t, cid, pci, arf) {
+	t = f("nr_nb"); TRAD = "nr"
+	if (t == "-") { t = f("lte_nb"); TRAD = "lte" }
+	if (t == "-") return t
+	cid = f(TRAD "_cid"); pci = f(TRAD "_pci"); arf = f(TRAD "_arfcn")
+	if (ST_id != "" && t != ST_id && TRAD == ST_rad && pci != "-" && pci == ST_pci && arf == ST_arf && ST_n > 1 && ((cid == ST_cid && onebit(t, ST_id)) || ++ST_held <= 5))
+		return ST_id
+	if (t != ST_id || TRAD != ST_rad) ST_n = 0
+	ST_id = t; ST_rad = TRAD; ST_cid = cid; ST_pci = pci; ST_arf = arf; ST_held = 0; ST_n++
+	return t
+}
+# Do two ids differ in exactly one bit?
+function onebit(x, y,   d) {
+	d = x - y; if (d < 0) d = -d
+	if (d < 1) return 0
+	while (d > 1 && d % 2 == 0) d /= 2
+	return d == 1
+}
+# "Water tower (gNB 1234567)" when named, else "gNB 1234567".
+function tlabel(rad, id,   k, l) {
+	k = rad ":" id; l = ((rad == "lte") ? "eNB " : "gNB ") id
+	return (TN[k] != "") ? TN[k] " (" l ")" : l
+}
+# Short form for change lists: the name if there is one, else the id.
+function tshort(rad, id,   k) { k = rad ":" id; return (TN[k] != "") ? TN[k] : id }
+# Distance and compass direction from (lat1, lon1) to (lat2, lon2), e.g.
+# "1.3 mi ↗ NE (42°)". units: imperial or metric.
+function distdir(lat1, lon1, lat2, lon2, units,   r1, r2, dl, a, d, y, x, b, dirs, arr, i) {
+	r1 = lat1 * PI / 180; r2 = lat2 * PI / 180; dl = (lon2 - lon1) * PI / 180
+	a = sin((r2 - r1) / 2) ^ 2 + cos(r1) * cos(r2) * sin(dl / 2) ^ 2
+	d = 2 * atan2(sqrt(a), sqrt(1 - a)) * ((units == "metric") ? 6371 : 3958.8)
+	y = sin(dl) * cos(r2); x = cos(r1) * sin(r2) - sin(r1) * cos(r2) * cos(dl)
+	b = (atan2(y, x) * 180 / PI + 360) % 360
+	split("N NE E SE S SW W NW", dirs, " "); split("↑ ↗ → ↘ ↓ ↙ ← ↖", arr, " ")
+	i = int((b + 22.5) / 45) % 8 + 1
+	return sprintf("%.1f %s %s %s (%d°)", d, (units == "metric") ? "km" : "mi", arr[i], dirs[i], b + 0.5)
+}
+# What the gateway is on, e.g. "n41 100 MHz", "n41" (width unknown), "LTE b66 20 MHz"
+function key(   nb, lb, bw, k, r) {
+	r = f("reg")
+	if (r != "registered") return "(" r ")"
+	nb = f("nr_bands"); lb = f("lte_bands")
+	if (nb != "-") { k = nb; bw = f("nr_bw") }
+	else if (lb != "-") { k = "LTE " lb; bw = f("lte_bw") }
+	else return "(no signal)"
+	if (bw != "-") k = k " " bw " MHz"
+	return k
+}
+# Good = registered, on a preferred band, and (if known) at least minbw wide.
+# Sets WHY to a description when not good.
+function good(   nb, lb, i, ok, bw, r) {
+	r = f("reg")
+	if (r == "unreachable") { WHY = "gateway unreachable"; return 0 }
+	if (r != "registered") { WHY = "not registered (" r ")"; return 0 }
+	nb = f("nr_bands"); lb = f("lte_bands")
+	ok = 0
+	for (i = 1; i <= npref; i++) if (P[i] != "" && index("," nb "," lb ",", "," P[i] ",")) ok = 1
+	if (!ok) { WHY = "on " key() ", not " prefstr; return 0 }
+	bw = (nb != "-") ? f("nr_bw") : f("lte_bw")
+	if (bw != "-" && bw + 0 < minbw + 0) { WHY = "on " key() " (narrower than " minbw " MHz)"; return 0 }
+	WHY = ""
+	return 1
+}
+function fmt(t,   d, s, era, doe, yoe, doy, mp, dd, mo) {
+	if (sf) return strftime("%m-%d %H:%M", t)
+	# no strftime (e.g. macOS awk): civil-from-days with a fixed UTC offset
+	t += tzoff; d = int(t / 86400); s = t - d * 86400
+	d += 719468; era = int(d / 146097); doe = d - era * 146097
+	yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365)
+	doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100)); mp = int((5 * doy + 2) / 153)
+	dd = doy - int((153 * mp + 2) / 5) + 1; mo = (mp < 10) ? mp + 3 : mp - 9
+	return sprintf("%02d-%02d %02d:%02d", mo, dd, int(s / 3600), int((s % 3600) / 60))
+}
+function dur(s) {
+	if (s >= 86400) return sprintf("%dd %dh", s / 86400, (s % 86400) / 3600)
+	if (s >= 3600) return sprintf("%dh %dm", s / 3600, (s % 3600) / 60)
+	return sprintf("%dm", s / 60)
+}
+function clean(s) { gsub(/\047/, "", s); return s }
+'
+
+AWK_SF=0
+TZOFF=0
+awk_env() {
+	local z sign hh mm
+	if awk 'BEGIN { strftime("%H", 0) }' >/dev/null 2>&1; then AWK_SF=1; fi
+	z=$(date +%z 2>/dev/null || echo +0000)
+	case "$z" in
+	[+-][0-9][0-9][0-9][0-9])
+		sign=${z%"${z#?}"}
+		hh=${z#?}
+		hh=${hh%??}
+		mm=${z#???}
+		TZOFF=$((${hh#0} * 3600 + ${mm#0} * 60))
+		if [ "$sign" = - ]; then TZOFF=$((-TZOFF)); fi
+		;;
+	esac
+}
+
+run_awk() { # PROGRAM [-v name=value...]  (reads stdin)
+	local prog="$1"
+	shift
+	awk -v pref="$PREFERRED_BANDS" -v minbw="$MIN_BW" -v gap="$GAP" -v sf="$AWK_SF" \
+		-v tzoff="$TZOFF" -v towerfile="$TOWERS" "$@" "$AWK_LIB$prog"
+}
+
+# ---------------------------------------------------------------------------
+# Health: is the gateway stuck on a band it should have left by now?
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HEALTH='
+$1 + 0 < now - lookback { next }
+{
+	t = $1 + 0
+	if (!first) first = t
+	g = good()
+	if (prev && t - prev > gap) streak = 0
+	if (g) { lastgood = t; streak = 0; if (t >= now - lookback) seen = 1 }
+	else if (!streak) streak = t
+	prev = t; cur = g; curwhy = WHY; curkey = key(); curreg = f("reg")
+}
+END {
+	if (curreg == "unreachable") lvl = "down"
+	else if (cur) lvl = "ok"
+	else if (now - streak >= stuck && seen) lvl = "reboot"
+	else lvl = "degraded"
+	printf "H_level=%s H_since=%d H_lastgood=%d H_seen=%d H_first=%d\n", lvl, streak, lastgood, seen, first
+	printf "H_why=\047%s\047 H_key=\047%s\047\n", clean(curwhy), clean(curkey)
+}
+'
+
+LOGGED=0 # set once the current sample is in the history buffer
+health_input() {
+	# Not `tail`: busybox tail -n is slow on big files; awk skips old rows quickly.
+	history_cat $((TS - LOOKBACK))
+	if [ "$LOGGED" = 0 ]; then printf '%s\n%s\n' "$HEADER" "$S_tsv"; fi
+}
+
+# health_eval: sets H_level (ok|degraded|reboot|down) and H_msg
+health_eval() {
+	local out dur hint
+	out=$(health_input | run_awk "$AWK_HEALTH" -v now="$TS" -v lookback="$LOOKBACK" \
+		-v stuck="$((STUCK_MINUTES * 60))")
+	eval "$out"
+	dur=$((TS - H_since))
+	case "$H_level" in
+	down) H_msg="${RED}DOWN${RESET}  $FETCH_ERR" ;;
+	ok) H_msg="${GREEN}OK${RESET}  on $H_key" ;;
+	reboot)
+		H_msg="${RED}REBOOT RECOMMENDED${RESET}  $H_why for $(fmt_dur "$dur")"
+		H_msg="$H_msg (last good $(fmt_dur $((TS - H_lastgood))) ago). Run: tmhi reboot"
+		case "${S_uptime:-}" in '' | *[!0-9]*) ;; *)
+			if [ "$S_uptime" -lt "$dur" ]; then
+				H_msg="$H_msg
+        The gateway restarted $(fmt_dur "$S_uptime") ago and came back degraded; the $PREFERRED_BANDS cell may be down."
+			fi
+			;;
+		esac
+		;;
+	*)
+		if ! has_history; then
+			hint="Enable history logging to tell a passing handover from a stuck gateway (see: tmhi help)."
+		elif [ "$H_seen" = 0 ] && [ $((TS - H_first)) -ge 86400 ]; then
+			hint="No good samples in the past 7 days, so a reboot probably won't help."
+		else
+			hint="Reboot if this lasts past ${STUCK_MINUTES}m."
+		fi
+		H_msg="${YELLOW}DEGRADED${RESET}  $H_why"
+		if [ "$dur" -ge 60 ]; then H_msg="$H_msg for $(fmt_dur "$dur")"; fi
+		H_msg="$H_msg. $hint"
+		;;
+	esac
+}
+
+# sample_json: the current sample and its health (after health_eval) as JSON.
+# This is what `status --json` prints and what LuCI reads from $LATEST.
+sample_json() {
+	jq_sample json | jq -c --arg level "$H_level" --arg since "$H_since" --arg lastgood "$H_lastgood" \
+		--arg seen "$H_seen" --arg first "$H_first" --arg why "$H_why" --arg key "$H_key" \
+		--arg err "$FETCH_ERR" --arg version "$VERSION" --arg pref "$(printf '%s' "$PREFERRED_BANDS" | tr ',' ' ')" \
+		--argjson stuck "$STUCK_MINUTES" --argjson minbw "$MIN_BW" --argjson history "$(has_history && echo true || echo false)" '
+	def num: if . == "" or . == "0" then null else tonumber end;
+	def str: if . == "" then null else . end;
+	. + {
+	  version: $version,
+	  error: ($err | str),
+	  health: {
+	    level: $level,
+	    key: $key,
+	    why: ($why | str),
+	    since: ($since | num),
+	    lastgood: ($lastgood | num),
+	    first: ($first | num),
+	    seen: ($seen == "1"),
+	    history: $history,
+	    preferred: ($pref | split(" ") | map(select(. != ""))),
+	    min_bw: $minbw,
+	    stuck_minutes: $stuck
+	  }
+	}'
+}
+
+# save_latest: atomically replace $LATEST with the current sample
+save_latest() {
+	mkdir -p "$RUN_DIR"
+	sample_json >"$LATEST.$$" && mv "$LATEST.$$" "$LATEST"
+}
+
+# latest_fresh SECS: is $LATEST younger than SECS?
+latest_fresh() {
+	local mtime
+	[ -s "$LATEST" ] || return 1
+	mtime=$(date -r "$LATEST" +%s 2>/dev/null) || return 1
+	[ $(($(date +%s) - mtime)) -lt "$1" ]
+}
+
+# tower_desc RADIO ID: "Water tower · 1.3 mi ↗ NE (42°)" for a named tower (the
+# distance needs the gateway's position, which comes with the admin login);
+# nothing when it isn't named.
+# shellcheck disable=SC2016 # awk program, not shell
+tower_desc() {
+	run_awk 'BEGIN {
+		k = rad ":" id
+		if (TN[k] == "") exit
+		o = TN[k]
+		if (TLAT[k] != "" && TLON[k] != "" && glat != "" && glon != "") o = o " · " distdir(glat, glon, TLAT[k], TLON[k], units)
+		print o
+	}' -v rad="$1" -v id="$2" -v glat="${S_gps_lat:-}" -v glon="${S_gps_lon:-}" -v units="$UNITS" </dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Rendering
+
+fmt_dur() {
+	local s="${1:-}"
+	case "$s" in '' | *[!0-9]*)
+		printf 'n/a'
+		return 0
+		;;
+	esac
+	if [ "$s" -ge 86400 ]; then
+		printf '%dd %dh' $((s / 86400)) $((s % 86400 / 3600))
+	elif [ "$s" -ge 3600 ]; then
+		printf '%dh %dm' $((s / 3600)) $((s % 3600 / 60))
+	elif [ "$s" -ge 60 ]; then
+		printf '%dm' $((s / 60))
+	else
+		printf '%ds' "$s"
+	fi
+}
+
+BAR=''
+mkbar() { # FILLED (0-10) -> BAR
+	local n="$1" i=0
+	if [ "$n" -lt 0 ]; then n=0; fi
+	if [ "$n" -gt 10 ]; then n=10; fi
+	BAR=''
+	while [ "$i" -lt 10 ]; do
+		if [ "$i" -lt "$n" ]; then BAR="${BAR}█"; else BAR="${BAR}░"; fi
+		i=$((i + 1))
+	done
+}
+
+# metric LABEL VALUE UNIT LO HI GOOD FAIR  (higher is better; the bar spans LO..HI)
+metric() {
+	local v="$2" n cls col
+	if [ -z "$v" ]; then
+		printf '  %-6s %sn/a%s\n' "$1" "$DIM" "$RESET"
+		return 0
+	fi
+	n=${v%%.*}
+	case "$n" in '' | - | *[!0-9-]*)
+		printf '  %-6s %s %s\n' "$1" "$v" "$3"
+		return 0
+		;;
+	esac
+	mkbar $(((n - $4) * 10 / ($5 - $4)))
+	if [ "$n" -ge "$6" ]; then
+		cls=good col=$GREEN
+	elif [ "$n" -ge "$7" ]; then
+		cls=fair col=$YELLOW
+	else
+		cls=poor col=$RED
+	fi
+	printf '  %-6s %s%5s %-3s%s %s  %s%s%s\n' "$1" "$col" "$v" "$3" "$RESET" "$BAR" "$col" "$cls" "$RESET"
+}
+
+render_rat() { # PREFIX TITLE -> 1 if this RAT isn't connected
+	local p="$1" k details why nbl named
+	local bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna
+	for k in bands bw rsrp rsrq sinr rssi bars cqi pci arfcn nb cid antenna; do
+		eval "$k=\${S_$p$k:-}"
+	done
+	if [ -z "$bands" ]; then return 1; fi
+
+	printf '%s%-6s%s %s%s%s\n' "$BOLD" "$2" "$RESET" "$BOLD" "$bands" "$RESET"
+	if [ -n "$bw" ]; then
+		metric Width "$bw" MHz 0 100 $((MIN_BW * 2)) "$MIN_BW"
+	else
+		case "$AUTH_STATE" in
+		nocreds) why="needs admin login: set tmhi.main.password" ;;
+		failed) why="admin login failed" ;;
+		*) why="not reported" ;;
+		esac
+		printf '  %-6s %sn/a (%s)%s\n' Width "$DIM" "$why" "$RESET"
+	fi
+	metric RSRP "$rsrp" dBm -120 -70 -90 -105
+	metric RSRQ "$rsrq" dB -20 -3 -10 -15
+	metric SINR "$sinr" dB -5 30 13 0
+	metric Bars "$bars" /4 0 4 3 2
+
+	if [ "$p" = nr_ ]; then nbl=gNB; else nbl=eNB; fi
+	if [ -n "$nb" ]; then
+		named=$(tower_desc "${p%_}" "$nb")
+		if [ -n "$named" ]; then printf '  %-6s %s\n' Tower "$named"; fi
+	fi
+	details=''
+	for k in "$nbl:$nb" "CID:$cid" "PCI:$pci" "ARFCN:$arfcn" "CQI:$cqi" "RSSI:$rssi"; do
+		if [ -n "${k#*:}" ]; then details="${details:+$details · }${k%%:*} ${k#*:}"; fi
+	done
+	if [ -n "$antenna" ]; then details="${details:+$details · }$antenna"; fi
+	if [ -n "$details" ]; then printf '  %s%s%s\n' "$DIM" "$details" "$RESET"; fi
+}
+
+render_status() {
+	local mode regcol ipv6
+	printf '%s%s%s  fw %s  ·  up %s  ·  %s\n' "$BOLD" "${S_model:-TMO-G4AR}" "$RESET" \
+		"${S_firmware:-?}" "$(fmt_dur "${S_uptime:-}")" "$(date '+%Y-%m-%d %H:%M:%S')"
+	if [ -n "$FETCH_ERR" ]; then
+		printf '\n%sHealth%s  %s\n' "$BOLD" "$RESET" "$H_msg"
+		return 0
+	fi
+	if [ -n "$S_nr_bands" ] && [ -n "$S_lte_bands" ]; then
+		mode="5G NSA"
+	elif [ -n "$S_nr_bands" ]; then
+		mode="5G SA"
+	elif [ -n "$S_lte_bands" ]; then
+		mode="LTE"
+	else
+		mode="no signal"
+	fi
+	if [ "$S_reg" = registered ]; then regcol=$GREEN; else regcol=$RED; fi
+	if [ "$S_ipv6" = true ]; then ipv6=yes; else ipv6=no; fi
+	printf '%s●%s %s  ·  %s  ·  APN %s  ·  IPv6 %s\n\n' "$regcol" "$RESET" "$S_reg" "$mode" \
+		"${S_apn:-?}" "$ipv6"
+	if render_rat nr_ "5G"; then printf '\n'; fi
+	if render_rat lte_ "LTE"; then printf '\n'; fi
+	printf '%sHealth%s  %s\n' "$BOLD" "$RESET" "$H_msg"
+}
+
+# ---------------------------------------------------------------------------
+# Commands
+
+cmd_status() {
+	local json=0 maxage=''
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--json) shift && json=1 ;;
+		--max-age)
+			[ $# -ge 2 ] || die "missing value for $1"
+			maxage=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	if [ -n "$maxage" ]; then
+		[ "$json" = 1 ] || die "--max-age needs --json"
+		case "$maxage" in *[!0-9]*) die "--max-age takes whole seconds" ;; esac
+		# A recent enough sample (usually the daemon's) saves a trip to the gateway.
+		if latest_fresh "$maxage"; then
+			cat "$LATEST"
+			return 0
+		fi
+	fi
+	init
+	awk_env
+	collect
+	health_eval
+	if [ "$json" = 1 ]; then
+		save_latest
+		cat "$LATEST"
+	else
+		render_status
+	fi
+	if [ -n "$FETCH_ERR" ]; then exit 1; fi
+}
+
+cmd_health() {
+	init
+	awk_env
+	collect
+	health_eval
+	printf '%s\n' "$H_msg"
+	case "$H_level" in
+	ok) exit 0 ;;
+	degraded) exit 2 ;;
+	reboot) exit 3 ;;
+	*) exit 1 ;;
+	esac
+}
+
+# spark LO HI "v1 v2 ..." ("-" = missing)
+spark() {
+	awk -v lo="$1" -v hi="$2" -v s="$3" 'BEGIN {
+		n = split(s, v, " "); split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", c, " ")
+		for (i = 1; i <= n; i++) {
+			if (v[i] == "-") { o = o " "; continue }
+			x = int((v[i] - lo) * 8 / (hi - lo)) + 1
+			if (x < 1) x = 1
+			if (x > 8) x = 8
+			o = o c[x]
+		}
+		print o
+	}'
+}
+
+keep_last() { # N "list" -> last N words
+	local n="$1"
+	# shellcheck disable=SC2086 # word splitting intended
+	set -- $2
+	while [ $# -gt "$n" ]; do shift; done
+	printf '%s' "$*"
+}
+
+nwords() {
+	# shellcheck disable=SC2086 # word splitting intended
+	set -- $1
+	echo $#
+}
+
+cmd_watch() {
+	local interval=15 out v sinrs='' rsrps='' oks='' okline
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-i | --interval)
+			[ $# -ge 2 ] || die "missing value for $1"
+			interval=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	case "$interval" in '' | *[!0-9]*) die "interval must be whole seconds" ;; esac
+	if [ "$interval" -lt 5 ]; then interval=5; fi
+	[ -t 1 ] || die "watch needs a terminal; use status or log in scripts"
+	init
+	awk_env
+	WATCHING=1
+	printf '%s[?25l' "$ESC"
+	while :; do
+		collect
+		health_eval
+		v=${S_nr_sinr:-$S_lte_sinr}
+		sinrs=$(keep_last 40 "$sinrs ${v:--}")
+		v=${S_nr_rsrp:-$S_lte_rsrp}
+		rsrps=$(keep_last 40 "$rsrps ${v:--}")
+		if [ "$H_level" = ok ]; then v=1; else v=0; fi
+		oks=$(keep_last 40 "$oks $v")
+		okline=$(printf '%s' "$oks" | awk -v g="$GREEN" -v r="$RED" -v z="$RESET" '{
+			for (i = 1; i <= NF; i++) o = o ($i ? g "█" : r "▁") z; print o }')
+		out=$(
+			render_status
+			printf '\n%sLast %d samples%s\n' "$BOLD" "$(nwords "$oks")" "$RESET"
+			printf '  %-6s %s\n' Good "$okline"
+			printf '  %-6s %s\n' SINR "$(spark -5 30 "$sinrs")"
+			printf '  %-6s %s\n' RSRP "$(spark -120 -70 "$rsrps")"
+			printf '\n%severy %ss · Ctrl-C to quit%s\n' "$DIM" "$interval" "$RESET"
+		)
+		printf '%s[H%s[2J%s\n' "$ESC" "$ESC" "$out"
+		sleep "$interval"
+	done
+}
+
+# ---------------------------------------------------------------------------
+# History storage: one file per day on flash (history-YYYY-MM-DD.tsv, each with
+# a header line), plus the not-yet-flushed buffer in RAM.
+
+# history_cat [SINCE]: samples oldest first (awk readers re-map columns at each
+# header). With SINCE, skips daily files that can only hold older samples; a
+# file can start up to flush_minutes before its date, hence the extra day.
+history_cat() {
+	local f cut=''
+	if [ -n "${1:-}" ]; then cut=$(date -d "@$(($1 - 86400))" +%Y-%m-%d 2>/dev/null) || cut=''; fi
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ ! -f "$f" ]; then continue; fi
+		if [ -n "$cut" ] && expr "${f##*/}" \< "history-$cut.tsv" >/dev/null; then continue; fi
+		cat "$f"
+	done
+	if [ -s "$BUFFER" ]; then
+		printf '%s\n' "$HEADER"
+		cat "$BUFFER"
+	fi
+}
+
+has_history() {
+	local f
+	if [ -s "$BUFFER" ]; then return 0; fi
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ -s "$f" ]; then return 0; fi
+	done
+	return 1
+}
+
+# Delete files whose newest sample has aged out. Never rewrites a file.
+prune_history() {
+	local f last cutoff
+	cutoff=$((TS - RETENTION_DAYS * 86400))
+	for f in "$HISTORY_DIR"/history-*.tsv; do
+		if [ ! -f "$f" ]; then continue; fi
+		last=$(tail -n 1 "$f" | cut -f1)
+		case "$last" in '' | *[!0-9]*) continue ;; esac
+		if [ "$last" -lt "$cutoff" ]; then rm -f "$f"; fi
+	done
+	# The reboot log is a few lines a month; rewrite it only once it has an old one.
+	last=$(head -n 1 "$EVENTS" 2>/dev/null | cut -f1) || last=''
+	case "$last" in '' | *[!0-9]*) return 0 ;; esac
+	if [ "$last" -lt "$cutoff" ]; then
+		awk -F '\t' -v c="$cutoff" '$1 >= c' "$EVENTS" >"$EVENTS.new" && mv "$EVENTS.new" "$EVENTS"
+	fi
+}
+
+# Move the RAM buffer to today's file on flash in a single append.
+flush_history() {
+	local f
+	if [ -s "$BUFFER" ]; then
+		# Rename first so a concurrent `log` starts a fresh buffer instead of racing us.
+		mv "$BUFFER" "$BUFFER.new"
+		cat "$BUFFER.new" >>"$BUFFER.flushing"
+		rm -f "$BUFFER.new"
+	fi
+	if [ ! -s "$BUFFER.flushing" ]; then return 0; fi
+	mkdir -p "$HISTORY_DIR"
+	f="$HISTORY_DIR/history-$(date +%Y-%m-%d).tsv"
+	if [ -s "$f" ] && [ "$(head -n 1 "$f")" != "$HEADER" ]; then
+		mv "$f" "$f.old"
+		err "history columns changed; moved $f to $f.old"
+	fi
+	if [ -s "$f" ]; then
+		cat "$BUFFER.flushing" >>"$f"
+	else
+		{
+			printf '%s\n' "$HEADER"
+			cat "$BUFFER.flushing"
+		} >"$f"
+	fi
+	rm -f "$BUFFER.flushing"
+	prune_history
+}
+
+# log_sample: take one sample and add it to the RAM buffer, flushing when due
+log_sample() {
+	local first
+	collect
+	# Single-file layout from earlier versions: rename it so it sorts first and ages out.
+	if [ -f "$HISTORY_DIR/history.tsv" ]; then
+		mv "$HISTORY_DIR/history.tsv" "$HISTORY_DIR/history-0000-00-00.tsv"
+	fi
+	mkdir -p "$RUN_DIR"
+	printf '%s\n' "$S_tsv" >>"$BUFFER"
+	LOGGED=1
+	first=$(head -n 1 "$BUFFER" | cut -f1)
+	if [ $((TS - first)) -ge $((FLUSH_MINUTES * 60)) ]; then flush_history; fi
+}
+
+cmd_log() {
+	if [ $# -gt 0 ]; then die "log takes no options"; fi
+	init
+	log_sample
+	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER")"; fi
+}
+
+# ---------------------------------------------------------------------------
+# Notifications. tmhi sends nothing off the router itself: it logs to syslog,
+# sends a ubus event (ubus listen tmhi) and runs the scripts in
+# /etc/hotplug.d/tmhi/ with these variables:
+#   ACTION    reboot-recommended | recovered | auto-reboot | auto-reboot-done | test
+#   MESSAGE   one line for a person to read
+#   LEVEL     health now: ok | degraded | reboot | down
+#   BAND      what the gateway is on, e.g. "n25 20 MHz"
+#   WHY       why it isn't healthy (empty when ok)
+#   DURATION  seconds: how long it has been (or was) degraded, if it applies
+
+# syslog PRIORITY MESSAGE: one line to the system log (daemon facility), so
+# remote syslog can filter by severity. PRIORITY: warning | notice | info
+syslog() {
+	logger -t tmhi -p "daemon.$1" "$2" 2>/dev/null || err "$2"
+}
+
+# notify ACTION MESSAGE [DURATION]
+notify() {
+	local action="$1" msg="$2" dur="${3:-}" prio=notice
+	case "$action" in
+	reboot-recommended) prio=warning ;;
+	auto-reboot-done) [ "$H_level" = ok ] || prio=warning ;;
+	test) prio=info ;;
+	esac
+	syslog "$prio" "$msg"
+	if command -v ubus >/dev/null 2>&1; then
+		ubus send tmhi "$(jq -nc --arg action "$action" --arg message "$msg" --arg level "$H_level" \
+			--arg band "$H_key" --arg why "$H_why" --arg dur "$dur" '
+			{action: $action, message: $message, level: $level, band: $band, why: $why}
+			+ (if $dur == "" then {} else {duration: ($dur | tonumber)} end)')" >/dev/null 2>&1 || true
+	fi
+	# In the background, so a slow script doesn't hold up sampling.
+	if [ -x /sbin/hotplug-call ]; then
+		ACTION="$action" MESSAGE="$msg" LEVEL="$H_level" BAND="$H_key" WHY="$H_why" DURATION="$dur" \
+			/sbin/hotplug-call tmhi </dev/null >/dev/null 2>&1 &
+	fi
+}
+
+# notify_check: once per bad stretch, when a reboot becomes recommended, and
+# when it recovers after that. The state is in RAM, so a daemon restart (a
+# config change) doesn't notify again.
+notify_check() {
+	local f="$RUN_DIR/notified" since
+	if [ "$H_level" = reboot ] && [ ! -f "$f" ]; then
+		echo "$H_since" >"$f"
+		notify reboot-recommended "Reboot recommended: $H_why for $(fmt_dur $((TS - H_since)))" $((TS - H_since))
+	elif [ "$H_level" = ok ] && [ -f "$f" ]; then
+		read -r since <"$f" || since=''
+		case "$since" in '' | *[!0-9]*) since=$TS ;; esac
+		rm -f "$f"
+		notify recovered "Recovered: on $H_key after $(fmt_dur $((TS - since))) degraded" $((TS - since))
+	fi
+}
+
+# fetch_check: log when the gateway stops answering and when it is back, once
+# per stretch (not every sample). Not a notification: a gateway reboot or a
+# blip does this too, and health already covers being down for long. The
+# state is in RAM, so a daemon restart mid-outage doesn't log it again.
+fetch_check() {
+	local f="$RUN_DIR/unreachable" since
+	if [ -n "$FETCH_ERR" ]; then
+		[ -f "$f" ] && return 0
+		echo "$TS" >"$f"
+		syslog warning "No answer from the gateway: $FETCH_ERR"
+	elif [ -f "$f" ]; then
+		read -r since <"$f" || since=''
+		case "$since" in '' | *[!0-9]*) since=$TS ;; esac
+		rm -f "$f"
+		syslog notice "The gateway is answering again after $(fmt_dur $((TS - since)))"
+	fi
+}
+
+# event_log SOURCE RESULT: record a gateway reboot in $EVENTS
+event_log() {
+	mkdir -p "$HISTORY_DIR"
+	printf '%s\treboot\t%s\t%s\t%s\n' "$TS" "$1" "$2" "${H_key:-}" >>"$EVENTS"
+}
+
+# gw_reboot [force]: ask the gateway to restart. force retries a failed admin
+# login right away (a person asked); without it the 15 minute wait after a
+# failed login applies. Sets REBOOT_CODE (000 = no answer, which can mean it
+# is already restarting) or REBOOT_ERR.
+gw_reboot() {
+	REBOOT_CODE='' REBOOT_ERR=''
+	if [ "$AUTH_STATE" != ok ]; then login "${1:-}" || {
+		REBOOT_ERR="admin login failed"
+		return 1
+	}; fi
+	REBOOT_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+		-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	if [ "$REBOOT_CODE" = 401 ] || [ "$REBOOT_CODE" = 403 ]; then
+		login "${1:-}" || {
+			REBOOT_ERR="admin login failed"
+			return 1
+		}
+		REBOOT_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" \
+			-X POST -H "@$TOKEN_FILE" "$BASE/gateway/reset?set=reboot" 2>/dev/null) || true
+	fi
+	case "$REBOOT_CODE" in
+	2?? | 000) return 0 ;;
+	*)
+		REBOOT_ERR="HTTP $REBOOT_CODE"
+		return 1
+		;;
+	esac
+}
+
+# wan_sample: track how long the WAN has stayed under auto_reboot_idle_kbit
+# both ways, from its byte counters, one reading per sample. IDLE_SINCE is
+# when the quiet stretch began.
+WAN_DEV='' WAN_TS='' WAN_RX='' WAN_TX='' IDLE_SINCE=''
+wan_sample() {
+	local d rx tx dt kbit
+	if [ -z "$WAN_DEV" ]; then
+		WAN_DEV=$WAN_DEVICE
+		if [ ! -r "/sys/class/net/$WAN_DEV/statistics/rx_bytes" ] && command -v ifstatus >/dev/null 2>&1; then
+			WAN_DEV=$(ifstatus wan 2>/dev/null | jq -r '.l3_device // .device // empty' 2>/dev/null) || WAN_DEV=''
+		fi
+	fi
+	d="/sys/class/net/$WAN_DEV/statistics"
+	if [ -z "$WAN_DEV" ] || [ ! -r "$d/rx_bytes" ] || [ ! -r "$d/tx_bytes" ]; then
+		WAN_DEV='' WAN_TS='' IDLE_SINCE=''
+		return 0
+	fi
+	if [ -z "$WAN_TS" ] && [ -n "$WAN_DEVICE" ] && [ "$WAN_DEV" != "$WAN_DEVICE" ]; then
+		syslog notice "wan_device $WAN_DEVICE does not exist, measuring $WAN_DEV instead"
+	fi
+	read -r rx <"$d/rx_bytes"
+	read -r tx <"$d/tx_bytes"
+	dt=$((TS - ${WAN_TS:-0}))
+	if [ -n "$WAN_TS" ] && [ "$dt" -gt 0 ] && [ "$dt" -le 300 ] && [ "$rx" -ge "$WAN_RX" ] && [ "$tx" -ge "$WAN_TX" ]; then
+		kbit=$(((rx - WAN_RX > tx - WAN_TX ? rx - WAN_RX : tx - WAN_TX) * 8 / 1000 / dt))
+		if [ "$kbit" -ge "$AR_IDLE_KBIT" ]; then
+			IDLE_SINCE=$TS
+		elif [ -z "$IDLE_SINCE" ]; then
+			IDLE_SINCE=$WAN_TS
+		fi
+	else
+		IDLE_SINCE=$TS
+	fi
+	WAN_TS=$TS WAN_RX=$rx WAN_TX=$tx
+}
+
+# in_window HOUR START END: is HOUR in [START, END)? END below START wraps
+# past midnight; START = END is never.
+in_window() {
+	if [ "$2" -lt "$3" ]; then
+		[ "$1" -ge "$2" ] && [ "$1" -lt "$3" ]
+	elif [ "$2" -gt "$3" ]; then
+		[ "$1" -ge "$2" ] || [ "$1" -lt "$3" ]
+	else
+		return 1
+	fi
+}
+
+# last_auto_reboot: time of the newest automatic reboot attempt, or 0
+last_auto_reboot() {
+	if [ -f "$EVENTS" ]; then
+		awk -F '\t' '$2 == "reboot" && $3 == "auto" { t = $1 } END { print t + 0 }' "$EVENTS"
+	else
+		echo 0
+	fi
+}
+
+# Why the window is passing without a reboot, and the longest quiet stretch
+# seen in it. In memory only: a daemon restart just loses the one log line.
+AR_WHY='' AR_QUIET=0
+
+# auto_reboot_skipped: after the window closes, log once why a recommended
+# reboot did not happen. Syslog only: nothing changed that needs a notification.
+auto_reboot_skipped() {
+	if [ -z "$AR_WHY" ]; then return 0; fi
+	syslog notice "No automatic reboot in the $AR_START:00-$AR_END:00 window: $AR_WHY"
+	AR_WHY='' AR_QUIET=0
+}
+
+# auto_reboot_check: with auto_reboot on, reboot the gateway when a reboot is
+# recommended, it is inside the night window, the WAN has been quiet for
+# auto_reboot_idle_minutes and there was no automatic attempt in the past
+# AR_SPACING. Then, once the gateway is back, say how it went.
+auto_reboot_check() {
+	local f="$RUN_DIR/auto-reboot" at key dur quiet
+	if [ -f "$f" ]; then
+		read -r at key <"$f" || at=''
+		case "$at" in '' | *[!0-9]*) at=0 ;; esac
+		dur=$((TS - at))
+		if [ "$H_level" = down ]; then
+			[ "$dur" -ge 3600 ] || return 0
+			notify auto-reboot-done "The gateway isn't back $(fmt_dur "$dur") after the automatic reboot"
+		else
+			[ "$dur" -ge 600 ] || return 0
+			if [ "$H_level" = ok ]; then
+				notify auto-reboot-done "Automatic reboot worked: on $H_key (was ${key:-unknown})"
+			else
+				notify auto-reboot-done "Still degraded after the automatic reboot: $H_why (was ${key:-unknown})" $((TS - H_since))
+			fi
+		fi
+		rm -f "$f"
+		return 0
+	fi
+	if [ "$AUTO_REBOOT" != 1 ]; then return 0; fi
+	if ! in_window "$(date +%H)" "$AR_START" "$AR_END"; then
+		auto_reboot_skipped
+		return 0
+	fi
+	if [ "$H_level" = ok ]; then AR_WHY='' AR_QUIET=0; fi
+	if [ "$H_level" != reboot ]; then return 0; fi
+	if [ $((TS - $(last_auto_reboot))) -lt "$AR_SPACING" ]; then
+		AR_WHY='' AR_QUIET=0
+		return 0
+	fi
+	if [ -z "$ADMIN_PASS" ]; then
+		AR_WHY="no admin password is set"
+		return 0
+	fi
+	if [ -z "$IDLE_SINCE" ]; then
+		AR_WHY="could not read the traffic counters of ${WAN_DEVICE:-the wan interface device}"
+		return 0
+	fi
+	quiet=$((TS - IDLE_SINCE))
+	if [ "$quiet" -lt $((AR_IDLE_MINUTES * 60)) ]; then
+		if [ "$quiet" -gt "$AR_QUIET" ]; then AR_QUIET=$quiet; fi
+		AR_WHY="the WAN was never under $AR_IDLE_KBIT kbit/s for $(fmt_dur $((AR_IDLE_MINUTES * 60))) (longest quiet stretch $(fmt_dur "$AR_QUIET"))"
+		return 0
+	fi
+	AR_WHY='' AR_QUIET=0
+	dur=$((TS - H_since))
+	notify auto-reboot "Rebooting the gateway: $H_why for $(fmt_dur "$dur"), WAN quiet for $(fmt_dur $((TS - IDLE_SINCE)))" "$dur"
+	if gw_reboot; then
+		event_log auto "$([ "$REBOOT_CODE" = 000 ] && echo noanswer || echo ok)"
+		printf '%s %s\n' "$TS" "$H_key" >"$f"
+	else
+		event_log auto failed
+		notify auto-reboot-done "Automatic reboot failed: $REBOOT_ERR" "$dur"
+	fi
+}
+
+# notify-test: send a test notification, to check hotplug scripts
+cmd_notify_test() {
+	if [ $# -gt 0 ]; then die "notify-test takes no options"; fi
+	H_level=test H_key='' H_why=''
+	notify test "tmhi test notification"
+	wait
+	echo "Sent: syslog (logread -e tmhi), ubus event tmhi, /etc/hotplug.d/tmhi/"
+}
+
+SLEEP_PID=''
+daemon_stop() {
+	if [ -n "$SLEEP_PID" ]; then kill "$SLEEP_PID" 2>/dev/null || true; fi
+	TS=$(date +%s)
+	flush_history
+	exit 0
+}
+
+# daemon: what the procd service runs. Samples every SECS seconds, keeps the
+# newest sample and its health in $LATEST, and writes the RAM buffer to flash
+# when stopped (including at shutdown).
+cmd_daemon() {
+	local interval=60
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-i | --interval)
+			[ $# -ge 2 ] || die "missing value for $1"
+			interval=$2
+			shift 2
+			;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	case "$interval" in '' | *[!0-9]*) die "interval must be whole seconds" ;; esac
+	if [ "$interval" -lt 10 ]; then interval=10; fi
+	init
+	awk_env
+	trap daemon_stop INT TERM HUP
+	while :; do
+		log_sample
+		fetch_check
+		health_eval
+		save_latest || err "could not write $LATEST"
+		notify_check
+		wan_sample
+		auto_reboot_check
+		# Sleep in the background so a TERM is handled right away.
+		sleep "$interval" &
+		SLEEP_PID=$!
+		wait "$SLEEP_PID" || true
+		SLEEP_PID=''
+	done
+}
+
+cmd_flush() {
+	if [ $# -gt 0 ]; then die "flush takes no options"; fi
+	TS=$(date +%s)
+	flush_history
+}
+
+dur_secs() { # 90m | 24h | 7d | 3600 -> seconds
+	local n="${1%[smhd]}"
+	case "$n" in '' | *[!0-9]*) die "bad duration: $1 (try 90m, 24h, 7d)" ;; esac
+	case "$1" in
+	*d) echo $((n * 86400)) ;;
+	*h) echo $((n * 3600)) ;;
+	*m) echo $((n * 60)) ;;
+	*) echo "$n" ;;
+	esac
+}
+
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HISTORY='
+$1 + 0 < since { next }
+{
+	t = $1 + 0; n++
+	if (!t0) t0 = t
+	t1 = t
+	k = key(); g = good()
+	if (!(k in cnt)) ord[++nk] = k
+	cnt[k]++; kgood[k] = g
+	rp = f("nr_rsrp"); if (rp == "-") rp = f("lte_rsrp")
+	sn = f("nr_sinr"); if (sn == "-") sn = f("lte_sinr")
+	if (rp != "-") { krp[k] += rp; krn[k]++ }
+	if (sn != "-") { ksn[k] += sn; ksnn[k]++ }
+
+	b = int((t + tzoff) / bucket) * bucket - tzoff
+	if (!(b in bn)) bord[++nbk] = b
+	bn[b]++; if (g) bg[b]++
+	bk[b, k]++
+	if (rp != "-") { brp[b] += rp; brn[b]++ }
+	if (sn != "-") { bsn[b] += sn; bsnn[b]++; if (!(b in bmin) || sn + 0 < bmin[b]) bmin[b] = sn + 0 }
+
+	tower = servtower(); rad = TRAD
+	if (tower != "-") {
+		tk = rad SUBSEP tower
+		if (!(tk in tcnt)) { tord[++ntw] = tk; trad[tk] = rad; tid[tk] = tower }
+		tcnt[tk]++; if (g) tgood[tk]++
+		if (rp != "-") { trp[tk] += rp; trn[tk]++ }
+		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
+	}
+	if (n > 1 && t - pt > gap) ev(pt, DIM "no samples for " dur(t - pt) RST)
+	while ((r = rbnext(t))) rbev(r)
+	if (n > 1) {
+		moved = (tower != ptower && tower != "-" && ptower != "-")
+		mv = "tower " tshort(prad, ptower) " → " tshort(rad, tower)
+		if (k != pk) ev(t, paint(pk, pg) " → " paint(k, g) (moved ? DIM "  (" mv ")" RST : ""))
+		else if (moved) ev(t, k DIM "  " mv RST)
+	}
+	pt = t; pk = k; pg = g; ptower = tower; prad = rad
+}
+function ev(t, s) { E[++ne] = DIM fmt(t) RST "  " s }
+function rbev(r) {
+	ev(RBT[r], YEL "gateway reboot" RST DIM "  (" ((RBS[r] == "auto") ? "automatic" : "manual") ((RBR[r] == "failed") ? ", failed" : "") ((RBK[r] != "") ? ", was on " RBK[r] : "") ")" RST)
+}
+function paint(k, g) { return (g ? GRN : RED) k RST }
+function avg(s, c) { return c ? sprintf("%.0f", s / c) : "-" }
+END {
+	while ((r = rbnext(now))) rbev(r)
+	if (!n) { print "No samples in this window. Is logging set up? (see: tmhi help)"; exit }
+	printf "%sHistory%s  %s → %s  ·  %d samples  ·  good = registered on %s, at least %s MHz wide\n\n", B, RST, fmt(t0), fmt(t1), n, prefstr, minbw
+
+	for (i = 1; i <= nk; i++) for (j = i + 1; j <= nk; j++) if (cnt[ord[j]] > cnt[ord[i]]) { x = ord[i]; ord[i] = ord[j]; ord[j] = x }
+	printf "%s%-26s %6s  %5s  %4s%s\n", B, "Time on", "share", "RSRP", "SINR", RST
+	for (i = 1; i <= nk; i++) {
+		k = ord[i]
+		printf "  %s%-24s%s %5.1f%%  %5s  %4s\n", (kgood[k] ? GRN : RED), k, RST, 100 * cnt[k] / n, avg(krp[k], krn[k]), avg(ksn[k], ksnn[k])
+	}
+
+	if (ntw) {
+		for (i = 1; i <= ntw; i++) for (j = i + 1; j <= ntw; j++) if (tcnt[tord[j]] > tcnt[tord[i]]) { x = tord[i]; tord[i] = tord[j]; tord[j] = x }
+		printf "\n%s%-38s %6s  %5s  %5s  %4s%s\n", B, "Tower", "share", "good", "RSRP", "SINR", RST
+		for (i = 1; i <= ntw; i++) {
+			tk = tord[i]; pct = int(100 * tgood[tk] / tcnt[tk])
+			printf "  %-36s %5.1f%%  %s%4d%%%s  %5s  %4s\n", tlabel(trad[tk], tid[tk]), 100 * tcnt[tk] / n, ((pct >= 99) ? GRN : ((pct >= 90) ? YEL : RED)), pct, RST, avg(trp[tk], trn[tk]), avg(tsn[tk], tsnn[tk])
+		}
+	}
+
+	printf "\n%s%-14s  %-20s %5s  %5s  %s%s\n", B, (bucket >= 86400 ? "Day" : "Time"), "mostly on", "good", "RSRP", "SINR avg/min", RST
+	for (i = 1; i <= nbk; i++) {
+		b = bord[i]; best = ""
+		for (j = 1; j <= nk; j++) if (((b, ord[j]) in bk) && (best == "" || bk[b, ord[j]] > bk[b, best])) best = ord[j]
+		pct = int(100 * bg[b] / bn[b])
+		col = (pct >= 99) ? GRN : ((pct >= 90) ? YEL : RED)
+		printf "  %-12s  %-20s %s%4d%%%s  %5s  %4s / %s\n", (bucket >= 86400 ? substr(fmt(b), 1, 5) : fmt(b)), best, col, pct, RST, avg(brp[b], brn[b]), avg(bsn[b], bsnn[b]), ((b in bmin) ? bmin[b] : "-")
+	}
+
+	if (ne) {
+		printf "\n%sChanges%s", B, RST
+		if (ne > maxev) printf "  %s(last %d of %d)%s", DIM, maxev, ne, RST
+		printf "\n"
+		for (i = (ne > maxev ? ne - maxev + 1 : 1); i <= ne; i++) print "  " E[i]
+	}
+}
+'
+
+# history --json: the same numbers for a UI to draw. Everything is unix time;
+# buckets start at local midnight / hour boundaries (tzoff = local - UTC).
+#   bands     time on each band, most first: key, good, samples, rsrp, sinr
+#   towers    time on each tower, most first: radio, id, samples, good, rsrp, sinr
+#   hours     per hour: t, n, good, rsrp/sinr [avg, min, max], keys {key: samples}
+#   series    per bucket: [t, n, good, rsrp [avg, min, max], sinr [avg, min, max]]
+#   segments  runs on one band: [start, end, key, good]; a gap ends a run
+#   events    band and tower changes, gaps and gateway reboots, oldest first
+#             (the last maxev); a change of tower has nb_from / nb_to and
+#             radio_from / radio_to; a reboot (type "reboot") has source
+#             (auto|manual), result (ok|noanswer|failed) and from (the band)
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_HISTORY_JSON='
+$1 + 0 < since { next }
+{
+	t = $1 + 0; n++
+	if (!t0) t0 = t
+	k = key(); g = good()
+	if (!(k in cnt)) ord[++nk] = k
+	cnt[k]++; kg[k] = g
+	rp = f("nr_rsrp"); if (rp == "-") rp = f("lte_rsrp")
+	sn = f("nr_sinr"); if (sn == "-") sn = f("lte_sinr")
+	if (rp != "-") { krp[k] += rp; krn[k]++ }
+	if (sn != "-") { ksn[k] += sn; ksnn[k]++ }
+
+	h = int((t + tzoff) / 3600) * 3600 - tzoff
+	if (!(("h" SUBSEP h) in N)) hord[++nh] = h
+	acc("h" SUBSEP h); hk[h, k]++
+	b = int((t + tzoff) / bucket) * bucket - tzoff
+	if (!(("b" SUBSEP b) in N)) bord[++nb] = b
+	acc("b" SUBSEP b)
+
+	tower = servtower(); rad = TRAD
+	if (tower != "-") {
+		tk = rad SUBSEP tower
+		if (!(tk in tcnt)) { tord[++ntw] = tk; trad[tk] = rad; tid[tk] = tower }
+		tcnt[tk]++; if (g) tgood[tk]++
+		if (rp != "-") { trp[tk] += rp; trn[tk]++ }
+		if (sn != "-") { tsn[tk] += sn; tsnn[tk]++ }
+	}
+	if (n == 1) seg(t)
+	else if (t - pt > gap) { se[ns] = pt + ivl; ev(pt, "gap", "", "", 0, 0, "", "", t - pt); seg(t) }
+	else if (k != pk) { se[ns] = t; seg(t) }
+	while ((r = rbnext(t))) rbev(r)
+	if (n > 1) {
+		moved = (tower != ptower && tower != "-" && ptower != "-")
+		if (k != pk) ev(t, "band", pk, k, pg, g, moved ? ptower : "", moved ? tower : "", 0)
+		else if (moved) ev(t, "tower", k, k, g, g, ptower, tower, 0)
+	}
+	pt = t; pk = k; pg = g; ptower = tower; prad = rad; t1 = t
+}
+function acc(id) {
+	N[id]++; if (g) G[id]++
+	if (rp != "-") { rp += 0; RSUM[id] += rp; RCNT[id]++
+		if (!(id in RLO) || rp < RLO[id]) RLO[id] = rp
+		if (!(id in RHI) || rp > RHI[id]) RHI[id] = rp }
+	if (sn != "-") { sn += 0; SSUM[id] += sn; SCNT[id]++
+		if (!(id in SLO) || sn < SLO[id]) SLO[id] = sn
+		if (!(id in SHI) || sn > SHI[id]) SHI[id] = sn }
+}
+function seg(t) { ns++; s0[ns] = t; sk[ns] = k; sg[ns] = g }
+function js(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
+function tf(x) { return x ? "true" : "false" }
+function avg(s, c) { return c ? sprintf("%.1f", s / c) : "null" }
+function stat3(id, S, C, L, H) { return (id in C) ? sprintf("[%.1f,%s,%s]", S[id] / C[id], L[id], H[id]) : "null" }
+function ev(t, type, a, b, ga, gb, na, nbb, d,   s) {
+	s = "{\"t\":" t ",\"type\":\"" type "\""
+	if (type == "gap") s = s ",\"dur\":" d
+	else {
+		s = s ",\"from\":" js(a) ",\"to\":" js(b) ",\"from_good\":" tf(ga) ",\"to_good\":" tf(gb)
+		if (na != "") s = s ",\"nb_from\":" js(na) ",\"nb_to\":" js(nbb) ",\"radio_from\":" js(prad) ",\"radio_to\":" js(rad)
+	}
+	E[++ne] = s "}"
+}
+function rbev(r) {
+	E[++ne] = "{\"t\":" RBT[r] ",\"type\":\"reboot\",\"source\":" js(RBS[r]) ",\"result\":" js(RBR[r]) ",\"from\":" js(RBK[r]) "}"
+}
+END {
+	while ((r = rbnext(now))) rbev(r)
+	if (n) se[ns] = t1 + ivl
+	printf "{\"now\":%d,\"since\":%d,\"first\":%s,\"last\":%s,\"samples\":%d,", now, since, (n ? t0 : "null"), (n ? t1 : "null"), n
+	printf "\"bucket\":%d,\"interval\":%d,\"gap\":%d,\"tzoff\":%d,\"min_bw\":%d,\"stuck_minutes\":%d,\"preferred\":[", bucket, ivl, gap, tzoff, minbw, stuck
+	sep = ""; for (i = 1; i <= npref; i++) if (P[i] != "") { printf "%s%s", sep, js(P[i]); sep = "," }
+
+	for (i = 1; i <= nk; i++) for (j = i + 1; j <= nk; j++) if (cnt[ord[j]] > cnt[ord[i]]) { x = ord[i]; ord[i] = ord[j]; ord[j] = x }
+	printf "],\"bands\":["
+	for (i = 1; i <= nk; i++) {
+		k = ord[i]
+		printf "%s{\"key\":%s,\"good\":%s,\"samples\":%d,\"rsrp\":%s,\"sinr\":%s}", (i > 1 ? "," : ""), js(k), tf(kg[k]), cnt[k], avg(krp[k], krn[k]), avg(ksn[k], ksnn[k])
+	}
+
+	printf "],\"towers\":["
+	for (i = 1; i <= ntw; i++) for (j = i + 1; j <= ntw; j++) if (tcnt[tord[j]] > tcnt[tord[i]]) { x = tord[i]; tord[i] = tord[j]; tord[j] = x }
+	for (i = 1; i <= ntw; i++) {
+		tk = tord[i]
+		printf "%s{\"radio\":%s,\"id\":%s,\"samples\":%d,\"good\":%d,\"rsrp\":%s,\"sinr\":%s}", (i > 1 ? "," : ""), js(trad[tk]), js(tid[tk]), tcnt[tk], tgood[tk], avg(trp[tk], trn[tk]), avg(tsn[tk], tsnn[tk])
+	}
+
+	printf "],\"hours\":["
+	for (i = 1; i <= nh; i++) {
+		h = hord[i]; id = "h" SUBSEP h
+		printf "%s{\"t\":%d,\"n\":%d,\"good\":%d,\"rsrp\":%s,\"sinr\":%s,\"keys\":{", (i > 1 ? "," : ""), h, N[id], G[id], stat3(id, RSUM, RCNT, RLO, RHI), stat3(id, SSUM, SCNT, SLO, SHI)
+		sep = ""; for (j = 1; j <= nk; j++) if ((h, ord[j]) in hk) { printf "%s%s:%d", sep, js(ord[j]), hk[h, ord[j]]; sep = "," }
+		printf "}}"
+	}
+
+	printf "],\"series\":["
+	for (i = 1; i <= nb; i++) {
+		b = bord[i]; id = "b" SUBSEP b
+		printf "%s[%d,%d,%d,%s,%s]", (i > 1 ? "," : ""), b, N[id], G[id], stat3(id, RSUM, RCNT, RLO, RHI), stat3(id, SSUM, SCNT, SLO, SHI)
+	}
+
+	printf "],\"segments\":["
+	for (i = 1; i <= ns; i++) printf "%s[%d,%d,%s,%s]", (i > 1 ? "," : ""), s0[i], se[i], js(sk[i]), tf(sg[i])
+
+	printf "],\"events\":["
+	for (i = (ne > maxev ? ne - maxev + 1 : 1); i <= ne; i++) printf "%s%s", (i > (ne > maxev ? ne - maxev + 1 : 1) ? "," : ""), E[i]
+	printf "]}\n"
+}
+'
+
+# json_bucket SECS: a chart bucket that gives at most ~360 points over SECS
+json_bucket() {
+	local b
+	for b in 300 600 900 1800 3600 7200 10800 21600 43200 86400; do
+		if [ $(($1 / b)) -le 360 ]; then break; fi
+	done
+	echo "$b"
+}
+
+cmd_history() {
+	local since=86400 bucket='' raw=0 json=0
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		-s | --since)
+			[ $# -ge 2 ] || die "missing value for $1"
+			since=$(dur_secs "$2")
+			shift 2
+			;;
+		-b | --bucket)
+			[ $# -ge 2 ] || die "missing value for $1"
+			bucket=$(dur_secs "$2")
+			shift 2
+			;;
+		--raw) shift && raw=1 ;;
+		--json) shift && json=1 ;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	TS=$(date +%s)
+	init
+	if [ "$json" = 1 ]; then
+		# No history yet is an empty result here, not an error.
+		if [ -z "$bucket" ]; then bucket=$(json_bucket "$since"); fi
+		[ "$bucket" -gt 0 ] || die "bucket must be positive"
+		awk_env
+		history_cat $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" \
+			-v bucket="$bucket" -v ivl=60 -v maxev=500 -v stuck="$STUCK_MINUTES"
+		return 0
+	fi
+	has_history || die "no history in $HISTORY_DIR yet (see: tmhi help)"
+	if [ "$raw" = 1 ]; then
+		history_cat $((TS - since)) | awk -F '\t' -v c="$((TS - since))" '$1 == "ts" ? !h++ : $1 >= c'
+		return 0
+	fi
+	if [ -z "$bucket" ]; then
+		if [ "$since" -gt 172800 ]; then bucket=86400; else bucket=3600; fi
+	fi
+	[ "$bucket" -gt 0 ] || die "bucket must be positive"
+	awk_env
+	history_cat $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" -v bucket="$bucket" -v maxev=25 \
+		-v B="$BOLD" -v DIM="$DIM" -v RST="$RESET" -v GRN="$GREEN" -v YEL="$YELLOW" -v RED="$RED"
+}
+
+cmd_reboot() {
+	local force=0 answer
+	case "${1:-}" in
+	-f | --force) force=1 ;;
+	'') ;;
+	*) die "unknown option: $1" ;;
+	esac
+	[ -n "$ADMIN_PASS" ] || die "reboot needs the admin password (tmhi.main.password)"
+	init
+	awk_env
+	collect
+	[ -z "$FETCH_ERR" ] || die "$FETCH_ERR"
+	health_eval
+	printf '%s\n' "$H_msg"
+	if [ "$force" = 0 ]; then
+		[ -t 0 ] || die "not a terminal; pass --force to reboot without confirming"
+		printf 'Reboot the gateway at %s (up %s)? [y/N] ' "$HOST" "$(fmt_dur "${S_uptime:-}")"
+		read -r answer || answer=''
+		case "$answer" in
+		y | Y | yes | YES) ;;
+		*)
+			echo "Not rebooting."
+			return 0
+			;;
+		esac
+	fi
+	if ! gw_reboot force; then
+		event_log manual failed
+		syslog warning "Manual reboot of the gateway failed: $REBOOT_ERR"
+		die "reboot failed: $REBOOT_ERR"
+	fi
+	if [ "$REBOOT_CODE" = 000 ]; then
+		event_log manual noanswer
+		syslog notice "Manual reboot of the gateway requested, no answer (was on ${H_key:-unknown})"
+		die "no response to the reboot request (the gateway may already be restarting)"
+	fi
+	event_log manual ok
+	syslog notice "Manual reboot of the gateway requested (was on ${H_key:-unknown})"
+	echo "Reboot requested. The gateway usually takes a few minutes to come back."
+}
+
+cmd_raw() {
+	local code
+	init
+	case "${1:-gateway}" in
+	gateway)
+		code=$(http_get 'gateway/?get=all' "$TMP/out.json")
+		case "$code" in 2??) ;; *) die "HTTP $code from gateway" ;; esac
+		;;
+	cell)
+		auth_get 'network/telemetry/?get=cell' "$TMP/out.json" ||
+			die "could not read cell telemetry (needs tmhi.main.password)"
+		;;
+	*) die "raw: expected gateway or cell" ;;
+	esac
+	jq . "$TMP/out.json"
+}
+
+usage() {
+	cat <<EOF
+Usage: tmhi [command] [options]
+
+Commands:
+  status [--json] [--max-age SECS]
+                       Band, channel width, signal quality and health (default
+                       command). With --max-age, a sample at most SECS old
+                       (usually the service's) is printed instead of asking
+                       the gateway again
+  watch [-i SECS]      Live view, refreshed every SECS seconds (default 15, min 5)
+  health               Is the gateway stuck? Exit 0 ok, 2 degraded,
+                       3 reboot recommended, 1 unreachable
+  daemon [-i SECS]     Record a sample every SECS seconds (default 60); this is
+                       what the tmhi service runs. Samples are buffered in RAM
+                       and written to flash every flush_minutes
+  log                  Record one sample (for cron, if you'd rather not run the service)
+  flush                Write buffered samples to flash now
+  version              Print the version
+  history [-s DUR] [-b DUR] [--raw | --json]
+                       Time per band, quality per hour or day, and band/tower
+                       changes over the last DUR (90m, 24h, 7d; default 24h)
+  reboot [--force]     Reboot the gateway (asks first unless --force)
+  notify-test          Send a test notification (see Notifications below)
+  raw [gateway|cell]   Print the gateway's raw JSON
+
+Settings are UCI options in /etc/config/tmhi, section "main":
+  password        admin password; needed for channel width, PCI/ARFCN/CQI and
+                  reboot. Keep the file mode 600.
+  username        admin username (admin)
+  host            gateway address (192.168.12.1)
+  port            API port (8080)
+  timeout         request timeout in seconds (10)
+  preferred_band  a band that counts as healthy; a list (n41)
+  min_bw          narrowest healthy channel in MHz (40)
+  stuck_minutes   minutes off the preferred band before a reboot is
+                  recommended (30)
+  history_dir     where daily history files go (/root/.tmhi)
+  retention_days  days of history to keep (30)
+  flush_minutes   how often buffered samples go to flash (60; 0 = every
+                  sample). A crash or power cut loses at most this much.
+  units           imperial (mi) or metric (km) for tower distances (imperial)
+  auto_reboot     1 = reboot the gateway by itself at night when a reboot is
+                  recommended (0). Needs the password. At most one attempt a
+                  night, and only while the WAN is quiet:
+  auto_reboot_start, auto_reboot_end
+                  the night window, hours in router local time; the end hour
+                  isn't included (2 and 5: 02:00 - 04:59)
+  auto_reboot_idle_kbit
+                  quiet = under this many kbit/s each way, per minute (1000)
+  auto_reboot_idle_minutes
+                  for at least this long (15)
+  wan_device      the device to measure (default, or if it doesn't exist: the wan interface's)
+
+Towers can be named, one "tower" section each, so output says "Water tower
+· 1.3 mi NE (42°)" rather than a bare gNB number (LuCI: Status > Cellular,
+or Settings > Towers):
+  uci add tmhi tower
+  uci set tmhi.@tower[-1].radio=nr          # nr = 5G gNB, lte = 4G eNB
+  uci set tmhi.@tower[-1].id=1234567
+  uci set tmhi.@tower[-1].name='Water tower'
+  uci set tmhi.@tower[-1].lat=47.6101 tmhi.@tower[-1].lon=-122.2015
+  uci commit tmhi
+For example:
+  uci set tmhi.main.password='...' && uci commit tmhi
+
+Notifications: tmhi logs to syslog, sends a ubus event ("ubus listen
+tmhi") and runs the scripts in /etc/hotplug.d/tmhi/ when a reboot
+becomes recommended, when it recovers after that, and before / after an
+automatic reboot. It sends nothing off the router itself; a hotplug script
+can (curl to ntfy, a webhook, etc). Scripts get ACTION (reboot-recommended,
+recovered, auto-reboot, auto-reboot-done, test), MESSAGE, LEVEL, BAND, WHY
+and DURATION (seconds degraded). See /etc/hotplug.d/tmhi/50-example.
+The system log also notes the gateway not answering (and back), and manual
+reboots.
+
+Health: a sample is good when the gateway is registered on a preferred band
+and, if the width is known, at least min_bw MHz wide. Brief drops are normal
+handovers. A reboot is recommended once samples have been bad for
+stuck_minutes and a good sample was seen in the past week.
+
+History logging on OpenWrt: the tmhi service (/etc/init.d/tmhi) runs
+"tmhi daemon". It takes a sample a minute (about 3 MB a month), writes to
+flash in one append an hour, and saves the buffer when stopped or at reboot.
+It restarts by itself when /etc/config/tmhi changes and is reloaded
+(LuCI does that; from a shell: reload_config).
+EOF
+}
+
+main() {
+	local cmd="${1:-status}"
+	if [ $# -gt 0 ]; then shift; fi
+	case "$cmd" in
+	status) cmd_status "$@" ;;
+	watch) cmd_watch "$@" ;;
+	health) cmd_health "$@" ;;
+	log) cmd_log "$@" ;;
+	daemon) cmd_daemon "$@" ;;
+	version | --version) echo "tmhi $VERSION" ;;
+	flush) cmd_flush "$@" ;;
+	history) cmd_history "$@" ;;
+	reboot) cmd_reboot "$@" ;;
+	notify-test) cmd_notify_test "$@" ;;
+	raw) cmd_raw "$@" ;;
+	help | -h | --help) usage ;;
+	*)
+		err "unknown command: $cmd"
+		usage >&2
+		exit 1
+		;;
+	esac
+}
+
+main "$@"

@@ -1,5 +1,5 @@
-# git-cliff config for the package release notes (tmog4ar and
-# luci-app-tmog4ar). CI runs `git-cliff --latest` for a vX.Y.Z tag and puts the
+# git-cliff config for the package release notes (tmhi and
+# luci-app-tmhi). CI runs `git-cliff --latest` for a vX.Y.Z tag and puts the
 # result above the image package tables; see AGENTS.md (Versions and releases).
 #
 # Each commit that touches the packages gives one line per "Release-note:"
@@ -8,7 +8,7 @@
 [changelog]
 header = ""
 body = """
-{% if version %}## tmog4ar {{ version | trim_start_matches(pat="v") }}{% else %}## tmog4ar (unreleased){% endif %}
+{% if version %}## tmhi {{ version | trim_start_matches(pat="v") }}{% else %}## tmhi (unreleased){% endif %}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
@@ -32,12 +32,12 @@ filter_unconventional = false
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
 # The files the packages are built from (the same list as the CI cache key).
 include_paths = [
-  "tmog4ar",
-  "tmog4ar.init",
-  "tmog4ar.config",
-  "tmog4ar.hotplug",
-  "openwrt/tmog4ar/**",
-  "openwrt/luci-app-tmog4ar/**",
+  "tmhi",
+  "tmhi.init",
+  "tmhi.config",
+  "tmhi.hotplug",
+  "openwrt/tmhi/**",
+  "openwrt/luci-app-tmhi/**",
 ]
 filter_commits = true
 # Release-note lines for commits that were merged without one. Each pattern

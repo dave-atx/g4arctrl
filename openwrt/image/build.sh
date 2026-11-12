@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build the Raspberry Pi 5 OpenWrt images: one per file in variants/, each
 # with the packages in packages.txt plus its own. Every image includes the
-# tmog4ar repository, so `apk upgrade` keeps tmog4ar current.
+# tmhi repository, so `apk upgrade` keeps tmhi current.
 #
 # Runs inside the OpenWrt Image Builder container for bcm27xx/bcm2712:
 #   docker run --rm -v "$PWD:/src:ro" -v "$PWD/image:/out" \
@@ -14,7 +14,7 @@
 #
 # The images are meant to be published, so they carry no configuration: set
 # the gateway password after flashing (LuCI: Status > Cellular > Settings, or
-# uci set tmog4ar.main.password=...); sysupgrade keeps /etc/config/tmog4ar.
+# uci set tmhi.main.password=...); sysupgrade keeps /etc/config/tmhi.
 #
 # IMAGE_TAG and IMAGE_REPO (default: dev, dave-atx/g4arctrl) go in each
 # image's /etc/g4arctrl-image, which image-upgrade reads.
@@ -55,7 +55,7 @@ apk=/builder/staging_dir/host/bin/apk
 
 # The Image Builder indexes whatever is in packages/ alongside the official
 # feeds. That index is signed with a throwaway key that stays out of the image.
-cp "$apk_dir"/tmog4ar-*.apk "$apk_dir"/luci-app-tmog4ar-*.apk packages/
+cp "$apk_dir"/tmhi-*.apk "$apk_dir"/luci-app-tmhi-*.apk packages/
 
 files=$(mktemp -d)
 mkdir -p "$files/etc/apk/keys" "$files/etc/apk/repositories.d"

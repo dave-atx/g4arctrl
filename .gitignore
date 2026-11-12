@@ -1,5 +1,6 @@
 # Local history and config, which can include the admin password
 *.tsv
 *.tsv.old
+tmhi.conf
 tmog4ar.conf
 .DS_Store

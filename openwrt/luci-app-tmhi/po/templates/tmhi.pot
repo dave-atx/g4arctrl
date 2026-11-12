@@ -1,0 +1,1086 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:412
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:65
+msgid "%d MHz"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:325
+msgid "%d band change"
+msgid_plural "%d band changes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:323
+msgid "%d sample"
+msgid_plural "%d samples"
+msgstr[0] ""
+msgstr[1] ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:332
+msgid "%d stretch longer than %dm"
+msgid_plural "%d stretches longer than %dm"
+msgstr[0] ""
+msgstr[1] ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:326
+msgid "%d tower change"
+msgid_plural "%d tower changes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:375
+msgid "%dd %dh"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:377
+msgid "%dh %dm"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:379
+msgid "%dm"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:381
+msgid "%ds"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:196
+msgid "%s (%.2f MHz)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:385
+msgid "%s ago"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:476
+msgid "%s for %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:465
+msgid "%s for %s (last good %s ago)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:960
+msgid "%s, %02d:00: %d%% good, mostly %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:904
+msgid "%s: avg %s, min %s, max %s %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:472
+msgid "(failed)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:9
+msgid "24 hours"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:11
+msgid "30 days"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:545
+msgid "50–90%"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:266
+msgid "5G"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:144
+msgid "5G (gNB)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:417
+msgid "5G NSA"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:419
+msgid "5G SA"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:22
+msgid ""
+"5G SA is 5G on its own. 5G NSA is 5G added on top of an LTE (4G) connection. "
+"LTE is 4G only."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:10
+msgid "7 days"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:544
+msgid "90–99%"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:543
+msgid "99% or more"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:34
+msgid ""
+"A short label that nearby cells use to tell each other apart. Not unique: it "
+"repeats across a city."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:40
+msgid "API port"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:258
+msgid "APN"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:196
+msgid "ARFCN"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:262
+msgid "Admin login"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:26
+msgid "Admin password"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:31
+msgid "Admin username"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:37
+msgid ""
+"All the radio energy received, including noise and interference. Less "
+"telling than RSRP."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:83
+msgid "And"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:199
+msgid "Antenna"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:220
+msgid "Ask the gateway now"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:235
+msgid "Asks the gateway unless the last sample is under %d seconds old"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:471
+msgid "Automatic gateway reboot"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:21
+msgid "Automatic reboot"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:25
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:341
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:347
+msgid "Band"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:528
+msgid "Band over time"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:51
+msgid "Bands that count as healthy, as the gateway names them (e.g. n41)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:209
+msgid "Bars"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:77
+msgid "Between"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:555
+msgid "By day"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:555
+msgid "By hour"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:197
+msgid "CQI"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:688
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:148
+msgid "Cancel"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:194
+msgid "Cell ID"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:636
+msgid "CellMapper link, or 47.6101, -122.2015"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:32
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:35
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:9
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:593
+#: openwrt/luci-app-tmhi/root/usr/share/luci/menu.d/luci-app-tmhi.json:3
+msgid "Cellular"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:13
+msgid "Cellular gateway"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:36
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:113
+msgid "Cellular signal"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:485
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:489
+msgid "Change"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:558
+msgid "Changes"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:205
+msgid "Channel width"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:126
+msgid "Collecting data..."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:254
+msgid "Connection"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:507
+msgid "Could not load history: %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:137
+msgid "Could not refresh: %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:146
+msgid "Current health:"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:392
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:402
+msgid "Day"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:121
+msgid "Days."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:485
+msgid "Degraded"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:85
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:35
+msgid "Details and history"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:578
+msgid "Direction from the gateway to the tower, with north up"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:132
+msgid "Distance units"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "E"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:715
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:431
+msgid "Edit"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:669
+msgid "Edit %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:718
+msgid "Find on CellMapper"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:132
+msgid "For the distance to named towers."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:687
+msgid "Forget"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:18
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:260
+msgid "Gateway"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:35
+msgid "Gateway address"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:471
+msgid "Gateway reboot"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:261
+msgid "Gateway uptime"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:645
+msgid "Give the tower a name."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:394
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:404
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:420
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:447
+msgid "Good"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:540
+msgid "Good samples by hour"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/root/usr/share/rpcd/acl.d/luci-app-tmhi.json:3
+msgid "Grant access to the tmhi cellular gateway status, history and settings"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:24
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:19
+msgid "Health"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:22
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:599
+msgid "History"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:116
+msgid "History directory"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:479
+msgid ""
+"History logging is off, so a passing handover looks the same as a stuck "
+"gateway."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:392
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:402
+msgid "Hour"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:30
+msgid ""
+"How clearly the signal stands out from interference. This matters most for "
+"speed: 13 or higher is good, 20 or higher is excellent, below 0 is poor."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:27
+msgid ""
+"How much radio spectrum the connection uses, like lanes on a highway: wider "
+"means more capacity. %d MHz or more is good."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:259
+msgid "IPv6"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:61
+msgid "Is the tmhi service running?"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:121
+msgid "Keep history for"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:134
+msgid "Kilometres"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:421
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:266
+msgid "LTE"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:145
+msgid "LTE (eNB)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:155
+msgid "Latitude"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:290
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:512
+msgid "Loading history…"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:679
+msgid "Location"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:248
+msgid "Logged in"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:250
+msgid "Login failed: check the password in Settings"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:159
+msgid "Longitude"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:182
+msgid "MHz"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:58
+msgid ""
+"MHz. A preferred band narrower than this counts as unhealthy (only known "
+"with the admin password)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:714
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:439
+msgid "Map"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:133
+msgid "Miles"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:64
+msgid ""
+"Minutes of unhealthy samples before a reboot is recommended. Shorter drops "
+"are normal handovers."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:101
+msgid ""
+"Minutes the internet connection has to stay that quiet before rebooting."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:127
+msgid ""
+"Minutes. Samples wait in RAM in between, which saves flash wear; a power cut "
+"loses at most this much. 0 writes every sample."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:257
+msgid "Mode"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:393
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:403
+msgid "Mostly on"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "N"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "NE"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "NW"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:675
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:152
+msgid "Name"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:669
+msgid "Name %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:718
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:431
+msgid "Name it…"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:138
+msgid ""
+"Names for the towers the gateway uses, so the status page and history say "
+"\"Water tower\" rather than a gNB number. With a location you also get the "
+"distance and direction from the gateway and a map link. The easiest way to "
+"add one is \"Name it…\" next to the tower on the status page."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:57
+msgid "Narrowest healthy channel"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:241
+msgid "Needs the admin password (Settings)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:143
+msgid "Network"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:492
+msgid "No band or tower changes or reboots in this period."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:61
+msgid "No data"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:481
+msgid "No good samples in the past 7 days, so a reboot probably won't help."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:126
+msgid "No history in the last 6 hours"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:517
+msgid "No history in this period yet. The tmhi service logs a sample a minute."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:249
+msgid ""
+"No password set (Settings; it's on the label on the back of the gateway): no "
+"channel width, PCI, ARFCN or CQI"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:219
+msgid ""
+"No sample yet. The tmhi service takes one a minute; check that it is running "
+"(System > Startup)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:468
+msgid "No samples for %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:423
+msgid "No signal"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:473
+msgid "Not on a preferred band."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:20
+msgid ""
+"Notifications: tmhi runs the scripts in /etc/hotplug.d/tmhi/ when a reboot "
+"becomes recommended, when the connection recovers, and before and after an "
+"automatic reboot. /etc/hotplug.d/tmhi/50-example has an example, and \"tmhi "
+"notify-test\" sends a test."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:459
+msgid "OK"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:78
+msgid "OK · SINR %s dB"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:459
+msgid "On %s."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:671
+msgid ""
+"On CellMapper, click the tower labelled %s and copy the page's link (the map "
+"centres on the tower). Or long-press the spot in Apple Maps and copy its "
+"coordinates."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:54
+msgid "One band name, letters and digits only"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:117
+msgid "One file per day. Only the default is kept across sysupgrade."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:672
+msgid "Open CellMapper"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/root/usr/share/luci/menu.d/luci-app-tmhi.json:16
+msgid "Overview"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:195
+msgid "PCI"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:649
+msgid ""
+"Paste a CellMapper or map link, or latitude, longitude (e.g. 47.6101, "
+"-122.2015)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:50
+msgid "Preferred bands"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:93
+msgid "Quiet below"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:100
+msgid "Quiet for"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:206
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:344
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:350
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:395
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:405
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:421
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:448
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:537
+msgid "RSRP"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:32
+msgid "RSRP %s dBm · SINR %s dB"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:207
+msgid "RSRQ"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:198
+msgid "RSSI"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:69
+msgid "Reboot automatically"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:165
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:168
+msgid "Reboot failed"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:153
+msgid "Reboot gateway"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:243
+msgid "Reboot gateway…"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:483
+msgid "Reboot if this lasts past %dm."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:470
+msgid "Reboot recommended"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:163
+msgid "Reboot requested. The gateway usually takes a few minutes to come back."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:70
+msgid ""
+"Reboot the gateway by itself when a reboot is recommended, at night while "
+"nobody is using the internet. At most one attempt a night. Needs the admin "
+"password."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:144
+msgid "Reboot the gateway?"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:63
+msgid "Recommend reboot after"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:237
+msgid "Refresh"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:256
+msgid "Registration"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:45
+msgid "Request timeout"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:78
+msgid "Router local time."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "S"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "SE"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:124
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:208
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:345
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:351
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:422
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:449
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:536
+msgid "SINR"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:396
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:406
+msgid "SINR avg / min"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:120
+msgid "SINR over the last 6 hours"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:114
+msgid "SINR, dB · 5 minute average"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "SW"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:690
+msgid "Save"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:45
+msgid "Seconds."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/root/usr/share/luci/menu.d/luci-app-tmhi.json:25
+msgid "Settings"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:14
+msgid ""
+"Settings for tmhi, which samples the T-Mobile TMO-G4AR gateway once a "
+"minute. Saving restarts the sampler."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:342
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:348
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:419
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:446
+msgid "Share"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:498
+msgid "Show all %d"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:32
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:532
+msgid "Signal"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:29
+msgid ""
+"Signal quality: how much of what the gateway hears is the tower, rather than "
+"noise and other people's traffic. -10 or higher is good, below -15 is poor."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:28
+msgid ""
+"Signal strength: how loud the tower is by the time it reaches you. Closer to "
+"zero is stronger; -90 or higher is good, below -105 is poor."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:682
+msgid ""
+"The CellMapper link, an Apple or Google Maps link, or latitude, longitude. "
+"Optional; with it you get the distance, direction and a map link."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:595
+msgid ""
+"The T-Mobile gateway's band, channel width and signal, as sampled once a "
+"minute by tmhi. A sample is good when the gateway is on a preferred band and "
+"wide enough; a reboot is recommended once it has been bad for a while."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:35
+msgid "The channel number, which pins down the exact radio frequency."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:462
+msgid "The gateway did not answer."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:468
+msgid ""
+"The gateway restarted %s ago and came back degraded; the %s cell may be down."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:36
+msgid ""
+"The gateway's 0 to 15 rating of the connection, sent to the tower so it can "
+"pick a speed. 15 is best."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:27
+msgid ""
+"The gateway's admin password: it's printed on the label on the back of the "
+"gateway, unless you've changed it. Needed for channel width, PCI, ARFCN, CQI "
+"and reboot; band and signal work without it. After a failed login with a "
+"password, tmhi waits 15 minutes before trying that same password again, so "
+"the gateway doesn't lock it out."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:31
+msgid "The gateway's own 0 to 4 summary, like the bars on a phone."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:145
+msgid ""
+"The internet connection drops for a few minutes while the gateway restarts."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:23
+msgid "The name of the T-Mobile data service the gateway connects through."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:110
+msgid ""
+"The network device whose traffic is measured. The wan interface has no "
+"device right now, so pick one here if your internet connection uses another "
+"interface."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:109
+msgid ""
+"The network device whose traffic is measured. Unspecified uses the wan "
+"interface's device, currently %s."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:32
+msgid "The tower's ID number (gNB for 5G, eNB for LTE)."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:84
+msgid "The window ends at the start of this hour."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:90
+msgid "The window needs a different start and end hour"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:343
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:349
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:484
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:489
+msgid "Time"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:549
+msgid "Time on each band"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:552
+msgid "Time on each tower"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:25
+msgid "Time since the gateway last restarted."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:26
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:417
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:444
+msgid "Tower"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:148
+msgid "Tower ID"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:137
+msgid "Towers"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:462
+msgid "Unreachable"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:33
+msgid "Updated"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:232
+msgid "Updated %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:553
+msgid "W"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:108
+msgid "WAN device"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:418
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:445
+msgid "Where"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:21
+msgid "Whether the gateway is signed in to T-Mobile's network."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:24
+msgid "Whether the network gave the gateway an IPv6 address."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:26
+msgid "Whether tmhi can log in to the gateway to read the detailed numbers."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:33
+msgid ""
+"Which antenna on the tower is serving you. Towers usually have several, each "
+"facing a different direction."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:38
+msgid "Which of the gateway's antennas is in use."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:126
+msgid "Write to flash every"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:207
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:208
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:536
+msgid "dB"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:198
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:206
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:537
+msgid "dBm"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:635
+msgid "e.g. Water tower"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:532
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:638
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:193
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:425
+msgid "eNB"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:505
+msgid "fair"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:532
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:638
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:193
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:425
+msgid "gNB"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:505
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:324
+msgid "good"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:334
+msgid "history starts %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/settings.js:94
+msgid ""
+"kbit/s, both download and upload, averaged over each minute. 1000 is 1 Mbit/"
+"s."
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:557
+msgid "km"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:533
+msgid "line: average per %s; shaded: min to max; dashed: good and fair levels"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:330
+msgid "longest bad stretch %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:557
+msgid "mi"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:498
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:49
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:187
+msgid "n/a"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:186
+msgid "n/a (admin login failed)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:185
+msgid "n/a (needs the admin password, see Settings)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:259
+msgid "no"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:505
+msgid "poor"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:305
+msgid "tmhi returned no data (exit code %d)"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:455
+msgid "tower %s → %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:546
+msgid "under 50%"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:473
+msgid "was on %s"
+msgstr ""
+
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:259
+msgid "yes"
+msgstr ""

@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in tmog4ar or its LuCI pages isn't working
+description: Something in tmhi or its LuCI pages isn't working
 labels: [bug]
 body:
   - type: markdown
@@ -25,7 +25,7 @@ body:
         - LuCI, Settings
         - LuCI, Status → Overview card
         - LuCI, dashboard widgets
-        - Command line (tmog4ar)
+        - Command line (tmhi)
         - Installing / upgrading
     validations:
       required: true
@@ -33,9 +33,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: tmog4ar version
-      description: Output of `tmog4ar version`
-      placeholder: tmog4ar 0.3.4
+      label: tmhi version
+      description: Output of `tmhi version`
+      placeholder: tmhi 0.3.4
     validations:
       required: true
 
@@ -52,7 +52,7 @@ body:
     id: gateway
     attributes:
       label: Gateway firmware
-      description: The `fw` value on the first line of `tmog4ar status` (or Status → Cellular → Gateway)
+      description: The `fw` value on the first line of `tmhi status` (or Status → Cellular → Gateway)
       placeholder: TMO-G4AR 1.00.18
 
   - type: dropdown
@@ -76,7 +76,7 @@ body:
   - type: textarea
     id: status
     attributes:
-      label: Output of `tmog4ar status`
+      label: Output of `tmhi status`
       description: Run it on the router over SSH. Remove tower numbers and cell IDs first.
       render: text
 
@@ -84,7 +84,7 @@ body:
     id: logs
     attributes:
       label: Log
-      description: Output of `logread -e tmog4ar | tail -n 50`
+      description: Output of `logread -e tmhi | tail -n 50`
       render: text
 
   - type: textarea
@@ -92,5 +92,5 @@ body:
     attributes:
       label: Raw gateway data (if asked)
       description: |
-        Only if the numbers look wrong: `tmog4ar raw cell`. **This includes the gateway's GPS position (`gps`) and your tower numbers; remove them** before pasting.
+        Only if the numbers look wrong: `tmhi raw cell`. **This includes the gateway's GPS position (`gps`) and your tower numbers; remove them** before pasting.
       render: json

@@ -1,4 +1,4 @@
-# tmog4ar
+# tmhi
 
 Status, history and "is it stuck?" checks for the T-Mobile Home Internet **TMO-G4AR** (Arcadyan) gateway, for an OpenWrt router sitting behind it. There's a LuCI app for the router's web interface and a command line tool underneath it.
 
@@ -6,17 +6,17 @@ Status, history and "is it stuck?" checks for the T-Mobile Home Internet **TMO-G
 
 ## Why
 
-My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41 at 100 MHz, leaving about a third of the usual bandwidth until it's rebooted. Short drops to another band are normal handovers and fix themselves. tmog4ar logs a sample every minute so it can tell those two cases apart, tells you when a reboot is worth it, and can do that reboot itself overnight if you want.
+My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41 at 100 MHz, leaving about a third of the usual bandwidth until it's rebooted. Short drops to another band are normal handovers and fix themselves. tmhi logs a sample every minute so it can tell those two cases apart, tells you when a reboot is worth it, and can do that reboot itself overnight if you want.
 
 ## What you get
 
 - **Status → Cellular** in LuCI: the band, channel width and signal (RSRP, RSRQ, SINR, etc), each with a one-line explanation of what it means and what counts as good. Plus a health verdict, a refresh button and a reboot button that asks first.
 - **History** for the last 24 hours, 7 days or 30 days: which band you were on over time, SINR and RSRP charts, a good-samples-by-hour heatmap, time on each band and tower, and every band / tower change.
-- **Optional automatic reboot at night.** When a reboot is recommended, tmog4ar can reboot the gateway itself between 02:00 and 05:00, once nobody's been using the internet for 15 minutes, at most once a night. Off by default; see [Automatic reboot at night](#automatic-reboot-at-night).
-- **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmog4ar/` (an ntfy example is included). See [Notifications](#notifications).
+- **Optional automatic reboot at night.** When a reboot is recommended, tmhi can reboot the gateway itself between 02:00 and 05:00, once nobody's been using the internet for 15 minutes, at most once a night. Off by default; see [Automatic reboot at night](#automatic-reboot-at-night).
+- **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmhi/` (an ntfy example is included). See [Notifications](#notifications).
 - **Tower names, distance and direction.** Name the towers you connect to (it links to [CellMapper](https://www.cellmapper.net) to find them) and the page shows "Water tower · 4.0 mi S" with an arrow pointing at it, which helps when you're deciding which window to put the gateway in.
 - A **card on Status → Overview** and two **dashboard widgets** (if you use luci-mod-dashboard).
-- A **command line tool**, `tmog4ar`, with the same status and history in a terminal.
+- A **command line tool**, `tmhi`, with the same status and history in a terminal.
 
 ![History: band over time, signal charts, the hourly heatmap and time on each tower](docs/screenshots/history.png)
 
@@ -41,10 +41,10 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
    ```sh
    uclient-fetch -O /etc/apk/keys/tmog4ar.pem https://dave-atx.github.io/g4arctrl/tmog4ar.pem
    echo https://dave-atx.github.io/g4arctrl/packages.adb >> /etc/apk/repositories.d/customfeeds.list
-   apk update && apk add tmog4ar luci-app-tmog4ar
+   apk update && apk add tmhi luci-app-tmhi
    ```
 
-   The first line installs the key the packages are signed with (it should match [openwrt/tmog4ar.pem](openwrt/tmog4ar.pem)). The install pulls in `curl` and `jq` and starts the `tmog4ar` service, which takes a sample once a minute. On a router without LuCI, leave out `luci-app-tmog4ar`.
+   The first line installs the key the packages are signed with (it should match [openwrt/tmog4ar.pem](openwrt/tmog4ar.pem)). The install pulls in `curl` and `jq` and starts the `tmhi` service, which takes a sample once a minute. On a router without LuCI, leave out `luci-app-tmhi`.
 
 3. **Set the gateway's admin password** (on the label on the back of the gateway, unless you've changed it). In LuCI, go to **Status → Cellular → Settings**, enter it under Admin password, and click **Save & Apply**.
 
@@ -63,7 +63,7 @@ Your settings and history are kept.
 Download the two `.apk` files from [Releases](https://github.com/dave-atx/g4arctrl/releases), copy them to the router, and:
 
 ```sh
-apk add --allow-untrusted ./tmog4ar-*.apk ./luci-app-tmog4ar-*.apk
+apk add --allow-untrusted ./tmhi-*.apk ./luci-app-tmhi-*.apk
 ```
 
 You won't get updates through `apk upgrade` this way.
@@ -71,10 +71,10 @@ You won't get updates through `apk upgrade` this way.
 ### Uninstall
 
 ```sh
-apk del luci-app-tmog4ar tmog4ar
+apk del luci-app-tmhi tmhi
 ```
 
-History stays in `/root/.tmog4ar/` and settings in `/etc/config/tmog4ar` until you delete them.
+History stays in `/root/.tmhi/` and settings in `/etc/config/tmhi` until you delete them.
 
 ## Using it
 
@@ -87,11 +87,11 @@ A sample is **good** when the gateway is registered on a preferred band (n41 by 
 - **Reboot recommended** once samples have been bad for 30 minutes straight and a good one was seen in the past week. The week rule keeps it from recommending reboots when the n41 site itself is down.
 - **Unreachable** when the gateway doesn't answer.
 
-The preferred bands, minimum width and 30 minutes are all in Settings → Health. Unless you turn on the automatic reboot below, tmog4ar never reboots the gateway by itself; the reboot button asks first.
+The preferred bands, minimum width and 30 minutes are all in Settings → Health. Unless you turn on the automatic reboot below, tmhi never reboots the gateway by itself; the reboot button asks first.
 
 ### Automatic reboot at night
 
-Settings → Automatic reboot (off by default; needs the admin password). With it on, tmog4ar reboots the gateway by itself when a reboot is recommended, but only:
+Settings → Automatic reboot (off by default; needs the admin password). With it on, tmhi reboots the gateway by itself when a reboot is recommended, but only:
 
 - between 02:00 and 05:00 router time,
 - once the internet connection has been quiet (under 1 Mbit/s both ways, each minute) for 15 minutes, so nobody's in the middle of something,
@@ -101,15 +101,15 @@ The router can't see who's home, so "quiet" means the traffic on its WAN device 
 
 ### Notifications
 
-tmog4ar sends nothing off the router itself. When a reboot becomes recommended, when the connection recovers after that, and before and after an automatic reboot, it:
+tmhi sends nothing off the router itself. When a reboot becomes recommended, when the connection recovers after that, and before and after an automatic reboot, it:
 
-- writes a line to the system log (`logread -e tmog4ar`; forward it with the router's remote syslog setting),
-- sends a ubus event (`ubus listen tmog4ar`),
-- runs the scripts in `/etc/hotplug.d/tmog4ar/`, with `ACTION`, `MESSAGE`, `LEVEL`, `BAND`, `WHY` and `DURATION` set.
+- writes a line to the system log (`logread -e tmhi`; forward it with the router's remote syslog setting),
+- sends a ubus event (`ubus listen tmhi`),
+- runs the scripts in `/etc/hotplug.d/tmhi/`, with `ACTION`, `MESSAGE`, `LEVEL`, `BAND`, `WHY` and `DURATION` set.
 
-`/etc/hotplug.d/tmog4ar/50-example` is a commented-out example that pushes to [ntfy](https://ntfy.sh) with curl; uncomment it and change the topic, or add your own script next to it. Scripts in that directory are kept across sysupgrade. `tmog4ar notify-test` sends a test. Brief drops don't notify: the first notification comes when a reboot is recommended (30 minutes by default).
+`/etc/hotplug.d/tmhi/50-example` is a commented-out example that pushes to [ntfy](https://ntfy.sh) with curl; uncomment it and change the topic, or add your own script next to it. Scripts in that directory are kept across sysupgrade. `tmhi notify-test` sends a test. Brief drops don't notify: the first notification comes when a reboot is recommended (30 minutes by default).
 
-The system log also gets a line when the gateway stops answering and when it's back, for reboots from the button or `tmog4ar reboot`, and when the night window closes with a recommended reboot not done, saying why; those don't run the scripts. Lines use the daemon facility: `warning` for a recommended reboot, a failed or unsuccessful automatic reboot, a failed manual reboot and the gateway not answering, `notice` for the rest.
+The system log also gets a line when the gateway stops answering and when it's back, for reboots from the button or `tmhi reboot`, and when the night window closes with a recommended reboot not done, saying why; those don't run the scripts. Lines use the daemon facility: `warning` for a recommended reboot, a failed or unsuccessful automatic reboot, a failed manual reboot and the gateway not answering, `notice` for the rest.
 
 ### Naming towers
 
@@ -118,23 +118,23 @@ Next to the tower number (gNB) on Status → Cellular:
 1. **Find on CellMapper** opens CellMapper's map around your gateway. Towers are labelled with their numbers; click the one that matches.
 2. **Name it…**: type a name and paste the CellMapper page's link into Location (after you click a tower, the map is centred on it). An Apple or Google Maps link, or plain `latitude, longitude`, works too.
 
-Towers you've used before can be named from History → Time on each tower. Names live in `/etc/config/tmog4ar` on the router, nothing is looked up online, and your position only leaves the router if you click one of the map links.
+Towers you've used before can be named from History → Time on each tower. Names live in `/etc/config/tmhi` on the router, nothing is looked up online, and your position only leaves the router if you click one of the map links.
 
 ### Command line
 
 ```
-tmog4ar status [--json]      band, channel width, signal quality and health (default)
-tmog4ar watch [-i SECS]      live view, refreshed every 15s by default
-tmog4ar health               is it stuck? exit 0 ok, 2 degraded, 3 reboot recommended, 1 unreachable
-tmog4ar history [-s 7d]      time per band and tower, quality per hour / day, band and tower changes
+tmhi status [--json]      band, channel width, signal quality and health (default)
+tmhi watch [-i SECS]      live view, refreshed every 15s by default
+tmhi health               is it stuck? exit 0 ok, 2 degraded, 3 reboot recommended, 1 unreachable
+tmhi history [-s 7d]      time per band and tower, quality per hour / day, band and tower changes
                              (--json for the numbers behind the LuCI charts)
-tmog4ar reboot [--force]     reboot the gateway
-tmog4ar notify-test          send a test notification (syslog, ubus, hotplug scripts)
-tmog4ar raw [gateway|cell]   raw JSON from the gateway
+tmhi reboot [--force]     reboot the gateway
+tmhi notify-test          send a test notification (syslog, ubus, hotplug scripts)
+tmhi raw [gateway|cell]   raw JSON from the gateway
 ```
 
 ```
-$ tmog4ar status
+$ tmhi status
 TMO-G4AR  fw 1.00.18  ·  up 4h 21m  ·  2026-11-02 17:55:51
 ● registered  ·  5G SA  ·  APN FBB.HOME  ·  IPv6 yes
 
@@ -150,15 +150,15 @@ TMO-G4AR  fw 1.00.18  ·  up 4h 21m  ·  2026-11-02 17:55:51
 Health  OK  on n41 100 MHz
 ```
 
-`tmog4ar health` exits 3 when a reboot is recommended, so you can build your own alerting or automation around it. `tmog4ar help` lists every command and setting.
+`tmhi health` exits 3 when a reboot is recommended, so you can build your own alerting or automation around it. `tmhi help` lists every command and setting.
 
 ## FAQ / troubleshooting
 
 **Channel width says "n/a".** The admin password isn't set, or it's wrong. The Admin login row on Status → Cellular says which.
 
-**"Admin login failed".** Check the password in Settings. After a failed login tmog4ar waits 15 minutes before trying that same password again, so it can't get the gateway to lock the account. Saving a different password tries it right away.
+**"Admin login failed".** Check the password in Settings. After a failed login tmhi waits 15 minutes before trying that same password again, so it can't get the gateway to lock the account. Saving a different password tries it right away.
 
-**"No sample yet" or the history is empty.** The service samples once a minute. Check it's running under System → Startup (`tmog4ar`), or from a shell: `/etc/init.d/tmog4ar status`.
+**"No sample yet" or the history is empty.** The service samples once a minute. Check it's running under System → Startup (`tmhi`), or from a shell: `/etc/init.d/tmhi status`.
 
 **Is this hard on the gateway?** Each sample is one or two small requests a minute. The LuCI pages read the router's copy of the latest sample rather than asking the gateway, however many browsers have them open; Refresh asks the gateway only if that copy is more than 15 seconds old.
 
@@ -166,16 +166,16 @@ Health  OK  on n41 100 MHz
 
 **A tower number CellMapper has never heard of.** The gateway sometimes reports the tower number with one bit missing for a few minutes. It can also briefly repeat the previous tower's number (one bit off) after moving to a new tower. History ignores both: while the PCI and channel stay the same, a new number is held back for up to 5 minutes before it counts as a tower change. If you see another odd one, CellMapper not knowing it is a good hint it's bogus.
 
-**Does anything leave my network?** No. tmog4ar talks to the gateway and nothing else. The only outside links are CellMapper and Apple Maps, and only when you click them.
+**Does anything leave my network?** No. tmhi talks to the gateway and nothing else. The only outside links are CellMapper and Apple Maps, and only when you click them.
 
 ## Raspberry Pi 5 images
 
 Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, factory or sysupgrade) built with the [Image Builder](https://openwrt.org/docs/guide-user/additional-software/imagebuilder), in two flavours:
 
-- `tmog4ar`: tmog4ar, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above.
+- `tmog4ar` (tmhi's old name): tmhi, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above.
 - `tmog4ar-cake-adapt`: the same plus [cake-adapt](https://github.com/huydoan94/cake-adapt) and its LuCI app, an adaptive SQM shaper for connections whose speed changes, like 5G home internet. cake-adapt isn't in the OpenWrt feeds, so `apk upgrade` won't update it; the next image will.
 
-They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmog4ar` and the history. The release notes list the packages that changed since the previous release, and each image's `.manifest` lists all of them.
+They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmhi` and the history. The release notes list the packages that changed since the previous release, and each image's `.manifest` lists all of them.
 
 ### Upgrading
 
@@ -190,19 +190,19 @@ It lists the OpenWrt version and every package that would be updated, added or r
 
 On a router not installed from these images, copy the script over and give it the image you want the first time: `sh image-upgrade -v tmog4ar-cake-adapt`.
 
-The online firmware builders (firmware selector, `owut`, Attended Sysupgrade) only know about official packages, so their images can't include tmog4ar or cake-adapt. Reinstall them after upgrading with those, or upgrade with these images instead.
+The online firmware builders (firmware selector, `owut`, Attended Sysupgrade) only know about official packages, so their images can't include tmhi or cake-adapt. Reinstall them after upgrading with those, or upgrade with these images instead.
 
 ## Development
 
-The CLI is a single POSIX shell script (busybox ash, also dash / bash) that needs `curl` and `jq` and reads its settings from UCI. The LuCI app is in [openwrt/luci-app-tmog4ar](openwrt/luci-app-tmog4ar). [AGENTS.md](AGENTS.md) has the conventions and the traps.
+The CLI is a single POSIX shell script (busybox ash, also dash / bash) that needs `curl` and `jq` and reads its settings from UCI. The LuCI app is in [openwrt/luci-app-tmhi](openwrt/luci-app-tmhi). [AGENTS.md](AGENTS.md) has the conventions and the traps.
 
 ### Without the package
 
 ```sh
 apk add curl jq
-cp tmog4ar /usr/bin/ && cp tmog4ar.init /etc/init.d/tmog4ar
-cp tmog4ar.config /etc/config/tmog4ar && chmod 600 /etc/config/tmog4ar
-/etc/init.d/tmog4ar enable && /etc/init.d/tmog4ar start
+cp tmhi /usr/bin/ && cp tmhi.init /etc/init.d/tmhi
+cp tmhi.config /etc/config/tmhi && chmod 600 /etc/config/tmhi
+/etc/init.d/tmhi enable && /etc/init.d/tmhi start
 ```
 
 ### Building the packages
@@ -210,12 +210,12 @@ cp tmog4ar.config /etc/config/tmog4ar && chmod 600 /etc/config/tmog4ar
 With the [OpenWrt SDK](https://openwrt.org/docs/guide-developer/using_the_sdk) for 25.12 (any target). The LuCI app builds with `luci.mk`, so keep the default feeds, which include luci:
 
 ```sh
-echo "src-link tmog4ar /path/to/g4arctrl/openwrt" >> feeds.conf
-./scripts/feeds update -a && ./scripts/feeds install tmog4ar luci-app-tmog4ar
-make defconfig && make package/tmog4ar/compile package/luci-app-tmog4ar/compile
+echo "src-link tmhi /path/to/g4arctrl/openwrt" >> feeds.conf
+./scripts/feeds update -a && ./scripts/feeds install tmhi luci-app-tmhi
+make defconfig && make package/tmhi/compile package/luci-app-tmhi/compile
 ```
 
-CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmog4ar` and `PKG_VERSION` in `openwrt/tmog4ar/Makefile` and `openwrt/luci-app-tmog4ar/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
+CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both packages and the Pi 5 images on every push. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile` and `openwrt/luci-app-tmhi/Makefile`, then push a `vX.Y.Z` tag. That creates the GitHub release and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
 
 ### Changing the images
 
@@ -223,7 +223,7 @@ CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds both pack
 - [openwrt/image/variants/](openwrt/image/variants): one file per image, with its own packages, plus `apk <url> <sha256>` lines for packages that aren't in any feed. A new file is a new image.
 - [openwrt/image/minimum-versions.txt](openwrt/image/minimum-versions.txt): the build fails if an image has an older version of a package listed here. Use it when a fix is merged in openwrt/packages but the release feed hasn't been rebuilt yet.
 
-To rebuild only the images, without a new tmog4ar version (for example when an OpenWrt package gets a security fix), push a `vX.Y.Z-rN` tag on the current version: `v0.2.0-r1`, `v0.2.0-r2`. That makes a release with the images and leaves the repository on Pages alone.
+To rebuild only the images, without a new tmhi version (for example when an OpenWrt package gets a security fix), push a `vX.Y.Z-rN` tag on the current version: `v0.2.0-r1`, `v0.2.0-r2`. That makes a release with the images and leaves the repository on Pages alone.
 
 ## Credits
 

@@ -1,7 +1,7 @@
 # The tmog4ar image plus cake-adapt (https://github.com/huydoan94/cake-adapt),
 # an adaptive SQM shaper for links whose speed changes, like 5G home internet.
 # See variants/tmog4ar.txt for the syntax.
-tmog4ar luci-app-tmog4ar
+tmhi luci-app-tmhi
 cake-adapt luci-app-cake-adapt
 
 # cake-adapt isn't in the OpenWrt feeds. To update it, change the URLs and take

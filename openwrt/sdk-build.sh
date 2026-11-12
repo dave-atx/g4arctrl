@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build tmog4ar and luci-app-tmog4ar, and a signed index, in the OpenWrt SDK
+# Build tmhi and luci-app-tmhi, and a signed index, in the OpenWrt SDK
 # container. Release containers already hold the SDK, so nothing comes from
 # the OpenWrt download mirrors; the feeds come from GitHub.
 #
@@ -29,7 +29,7 @@ sed -e 's,https://git.openwrt.org/feed/,https://github.com/openwrt/,' \
 echo "src-link action /builder/src/openwrt" >>feeds.conf
 
 ./scripts/feeds update -a
-./scripts/feeds install -p action tmog4ar luci-app-tmog4ar
+./scripts/feeds install -p action tmhi luci-app-tmhi
 make defconfig
 
 signed=
@@ -38,5 +38,5 @@ if [ -n "${PRIVATE_KEY:-}" ]; then
 	signed=y
 fi
 
-make -j"$(nproc)" package/tmog4ar/compile package/luci-app-tmog4ar/compile
+make -j"$(nproc)" package/tmhi/compile package/luci-app-tmhi/compile
 make CONFIG_SIGNED_PACKAGES="$signed" package/index

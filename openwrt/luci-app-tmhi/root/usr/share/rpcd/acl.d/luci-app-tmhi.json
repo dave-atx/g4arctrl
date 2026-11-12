@@ -1,0 +1,19 @@
+{
+	"luci-app-tmhi": {
+		"description": "Grant access to the tmhi cellular gateway status, history and settings",
+		"read": {
+			"file": {
+				"/tmp/tmhi-0/latest.json": [ "read" ],
+				"/usr/bin/tmhi status --json --max-age *": [ "exec" ],
+				"/usr/bin/tmhi history --json -s *": [ "exec" ]
+			},
+			"uci": [ "tmhi" ]
+		},
+		"write": {
+			"file": {
+				"/usr/bin/tmhi reboot --force": [ "exec" ]
+			},
+			"uci": [ "tmhi" ]
+		}
+	}
+}
