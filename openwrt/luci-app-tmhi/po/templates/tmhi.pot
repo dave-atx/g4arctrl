@@ -2,7 +2,7 @@ msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js:412
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:65
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:49
 msgid "%d MHz"
 msgstr ""
 
@@ -227,8 +227,8 @@ msgstr ""
 msgid "CellMapper link, or 47.6101, -122.2015"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:32
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:35
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:22
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:25
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:9
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:593
 #: openwrt/luci-app-tmhi/root/usr/share/luci/menu.d/luci-app-tmhi.json:3
@@ -239,8 +239,8 @@ msgstr ""
 msgid "Cellular gateway"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:36
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:113
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:26
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:97
 msgid "Cellular signal"
 msgstr ""
 
@@ -257,7 +257,7 @@ msgstr ""
 msgid "Channel width"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:126
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:110
 msgid "Collecting data..."
 msgstr ""
 
@@ -290,7 +290,7 @@ msgstr ""
 msgid "Degraded"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:85
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:69
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/status/include/35_tmhi.js:35
 msgid "Details and history"
 msgstr ""
@@ -405,7 +405,7 @@ msgstr ""
 msgid "IPv6"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:61
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:45
 msgid "Is the tmhi service running?"
 msgstr ""
 
@@ -546,7 +546,7 @@ msgstr ""
 msgid "No band or tower changes or reboots in this period."
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:61
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:45
 msgid "No data"
 msgstr ""
 
@@ -554,7 +554,7 @@ msgstr ""
 msgid "No good samples in the past 7 days, so a reboot probably won't help."
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:126
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:110
 msgid "No history in the last 6 hours"
 msgstr ""
 
@@ -598,7 +598,7 @@ msgstr ""
 msgid "OK"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:78
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:62
 msgid "OK · SINR %s dB"
 msgstr ""
 
@@ -742,7 +742,7 @@ msgstr ""
 msgid "SE"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:124
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:108
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:208
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:345
 #: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/tmhi/status.js:351
@@ -757,11 +757,11 @@ msgstr ""
 msgid "SINR avg / min"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:120
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:104
 msgid "SINR over the last 6 hours"
 msgstr ""
 
-#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:114
+#: openwrt/luci-app-tmhi/htdocs/luci-static/resources/view/dashboard/include/25_tmhi.js:98
 msgid "SINR, dB · 5 minute average"
 msgstr ""
 

@@ -1,15 +1,13 @@
 'use strict';
 'require baseclass';
 'require tmhi';
+'require view.dashboard.lib.charts as charts';
 
 // Widgets for luci-mod-dashboard: a status card and a SINR chart, drawn with
-// the dashboard's own chart helpers so they look like the rest of it.
-//
-// Those helpers (and the widget slots) arrived in luci-mod-dashboard in
-// September 2026. Older dashboards load every include with one Promise.all,
-// so a 'require' of a module they don't have would break the whole page.
-// Load the helpers here instead, and when they're missing render nothing
-// (older dashboards skip an include that renders null).
+// the dashboard's own chart helpers so they look like the rest of it. Those
+// helpers (and the widget slots) arrived in luci-mod-dashboard in September
+// 2026; an older dashboard fails to load with this include installed, and
+// updating luci-mod-dashboard fixes it.
 
 const SPAN = 6 * 3600;      // chart window, seconds
 const BUCKET = 300;         // one point per 5 minutes
@@ -19,14 +17,6 @@ const HISTORY_EVERY = 300;  // the dashboard polls every few seconds; history ne
 const SINR_LO = -10, SINR_HI = 40;
 
 let hist = null, histAt = 0, towers = { list: [], units: 'imperial' };
-let charts = null;
-
-// The dashboard's chart helpers, or null on a dashboard too old to have
-// them (or the widget slots this include fills).
-const helpers = L.resolveDefault(Promise.all([
-	L.require('view.dashboard.lib.widgets'),
-	L.require('view.dashboard.lib.charts')
-]).then(([ widgets, lib ]) => { charts = lib; return lib; }), null);
 
 return baseclass.extend({
 	title: _('Cellular'),
@@ -36,11 +26,6 @@ return baseclass.extend({
 		{ id: 'tmhi-sinr', slot: 'charts', title: _('Cellular signal'), order: 25 }
 	],
 
-	// Asked by dashboards that have widget slots; older ones don't ask.
-	available() {
-		return helpers.then(lib => lib != null);
-	},
-
 	load() {
 		const now = Date.now() / 1000;
 		const wantHistory = (now - histAt >= HISTORY_EVERY);
@@ -49,7 +34,6 @@ return baseclass.extend({
 			histAt = now;
 
 		return Promise.all([
-			helpers,
 			tmhi.latest(),
 			tmhi.towers().then(t => { towers = t; }),
 			wantHistory ? L.resolveDefault(tmhi.history(SPAN, BUCKET), null).then(h => { hist = h ?? hist; }) : null
@@ -127,10 +111,7 @@ return baseclass.extend({
 		});
 	},
 
-	render([ lib, s ]) {
-		if (!lib)
-			return null;
-
+	render([ s ]) {
 		tmhi.loadCSS();
 
 		return {

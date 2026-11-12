@@ -17,7 +17,7 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
 - **Optional automatic reboot at night.** When a reboot is recommended, tmhi can reboot the gateway itself between 02:00 and 05:00, once nobody's been using the internet for 15 minutes, at most once a night. Off by default; see [Automatic reboot at night](#automatic-reboot-at-night).
 - **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmhi/` (an ntfy example is included). See [Notifications](#notifications).
 - **Tower names, distance and direction.** Name the towers you connect to (it links to [CellMapper](https://www.cellmapper.net) to find them) and the page shows "Water tower · 4.0 mi S" with an arrow pointing at it, which helps when you're deciding which window to put the gateway in.
-- A **card on Status → Overview** and two **dashboard widgets** (if you use luci-mod-dashboard).
+- A **card on Status → Overview** and two **dashboard widgets** (if you use luci-mod-dashboard; it needs a version from September 2026 or later, so run `apk upgrade luci-mod-dashboard` if the dashboard stops loading after installing tmhi).
 - A **command line tool**, `tmhi`, with the same status and history in a terminal.
 
 ![History: band over time, signal charts, the hourly heatmap and time on each tower](docs/screenshots/history.png)
