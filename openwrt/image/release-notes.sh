@@ -19,9 +19,10 @@ prev_tag=$1
 prev_dir=$2
 cur_dir=$3
 
-# openwrt-25.12.6-tmog4ar-bcm27xx-bcm2712-rpi-5.manifest -> tmog4ar
+# openwrt-25.12.6-tmhi-bcm27xx-bcm2712-rpi-5.manifest -> tmhi. The images were
+# called tmog4ar before 0.4.0; compare those with the tmhi ones.
 variant() {
-	basename "$1" .manifest | sed 's/^openwrt-[^-]*-//; s/-bcm27xx-bcm2712-rpi-5$//'
+	basename "$1" .manifest | sed 's/^openwrt-[^-]*-//; s/-bcm27xx-bcm2712-rpi-5$//; s/^tmog4ar/tmhi/'
 }
 
 echo "## Packages"

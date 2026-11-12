@@ -8,7 +8,7 @@
 #
 # The image records its repository, variant and release in /etc/g4arctrl-image.
 # A router installed some other way has no such file: give -v VARIANT
-# (tmog4ar or tmog4ar-cake-adapt) the first time.
+# (tmhi or tmhi-cake-adapt) the first time.
 #
 # Before upgrading, an executable /etc/image-upgrade/pre-upgrade runs, e.g. to
 # copy a backup off the router; if it fails, nothing is upgraded. sysupgrade
@@ -43,7 +43,9 @@ done
 shift $((OPTIND - 1))
 cmd=${1:-check}
 case $cmd in check | upgrade) ;; *) usage ;; esac
-[ -n "$VARIANT" ] || die "no $marker; give the image variant with -v (tmog4ar or tmog4ar-cake-adapt)"
+[ -n "$VARIANT" ] || die "no $marker; give the image variant with -v (tmhi or tmhi-cake-adapt)"
+# The images were called tmog4ar and tmog4ar-cake-adapt before 0.4.0.
+case $VARIANT in tmog4ar*) VARIANT=tmhi${VARIANT#tmog4ar} ;; esac
 
 work=/tmp/image-upgrade
 rm -rf "$work"

@@ -1,6 +1,6 @@
-# The tmog4ar image plus cake-adapt (https://github.com/huydoan94/cake-adapt),
+# The tmhi image plus cake-adapt (https://github.com/huydoan94/cake-adapt),
 # an adaptive SQM shaper for links whose speed changes, like 5G home internet.
-# See variants/tmog4ar.txt for the syntax.
+# See variants/tmhi.txt for the syntax.
 tmhi luci-app-tmhi
 tmog4ar luci-app-tmog4ar
 cake-adapt luci-app-cake-adapt

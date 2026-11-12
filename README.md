@@ -63,7 +63,7 @@ Your settings and history are kept.
 
 ### Upgrading from tmog4ar
 
-tmog4ar was renamed tmhi in 0.4.0. `apk upgrade` (or `image-upgrade` on the Pi images) moves you over: the `tmog4ar` and `luci-app-tmog4ar` packages become empty ones that install `tmhi` and `luci-app-tmhi`, and the first time they're installed they move your settings (`/etc/config/tmhi`), history (`/root/.tmhi/`, if you kept the default `history_dir`) and notification scripts (`/etc/hotplug.d/tmhi/`) across. Afterwards you can remove them with `apk del tmog4ar luci-app-tmog4ar`; `tmog4ar` stays a shortcut for `tmhi` until you do.
+tmog4ar was renamed tmhi in 0.4.0. `apk upgrade` (or `image-upgrade -v tmhi upgrade` on the Pi images; see [Upgrading](#upgrading)) moves you over: the `tmog4ar` and `luci-app-tmog4ar` packages become empty ones that install `tmhi` and `luci-app-tmhi`, and the first time they're installed they move your settings (`/etc/config/tmhi`), history (`/root/.tmhi/`, if you kept the default `history_dir`) and notification scripts (`/etc/hotplug.d/tmhi/`) across. Afterwards you can remove them with `apk del tmog4ar luci-app-tmog4ar`; `tmog4ar` stays a shortcut for `tmhi` until you do.
 
 What changes for you: the page is still Status → Cellular. The command is `tmhi`, the syslog tag and ubus event are `tmhi` (`logread -e tmhi`, `ubus listen tmhi`), and hook scripts run from `/etc/hotplug.d/tmhi/`. Anything of your own that watches for `tmog4ar` in the log or listens for the `tmog4ar` ubus event needs the new name.
 
@@ -183,8 +183,8 @@ Health  OK  on n41 100 MHz
 
 Each release also has OpenWrt 25.12 images for the Pi 5 (ext4 or squashfs, factory or sysupgrade) built with the [Image Builder](https://openwrt.org/docs/guide-user/additional-software/imagebuilder), in two flavours:
 
-- `tmog4ar` (tmhi's old name): tmhi, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above.
-- `tmog4ar-cake-adapt`: the same plus [cake-adapt](https://github.com/huydoan94/cake-adapt) and its LuCI app, an adaptive SQM shaper for connections whose speed changes, like 5G home internet. cake-adapt isn't in the OpenWrt feeds, so `apk upgrade` won't update it; the next image will.
+- `tmhi`: tmhi, the LuCI app, the packages in [openwrt/image/packages.txt](openwrt/image/packages.txt) and the repository above.
+- `tmhi-cake-adapt`: the same plus [cake-adapt](https://github.com/huydoan94/cake-adapt) and its LuCI app, an adaptive SQM shaper for connections whose speed changes, like 5G home internet. cake-adapt isn't in the OpenWrt feeds, so `apk upgrade` won't update it; the next image will.
 
 They carry no configuration, so after flashing set the gateway password as in step 3. A sysupgrade keeps `/etc/config/tmhi` and the history. The release notes list the packages that changed since the previous release, and each image's `.manifest` lists all of them.
 
@@ -199,7 +199,9 @@ image-upgrade upgrade    # the same, then asks, downloads, checks the sha256 and
 
 It lists the OpenWrt version and every package that would be updated, added or removed, including packages you installed yourself that the image doesn't have (they'd be gone after upgrading). It picks squashfs or ext4 to match the router and keeps your configuration as sysupgrade normally does. If `/etc/image-upgrade/pre-upgrade` exists and is executable, it runs first (to copy a backup somewhere, say), and a failure stops the upgrade; sysupgrade keeps that directory.
 
-On a router not installed from these images, copy the script over and give it the image you want the first time: `sh image-upgrade -v tmog4ar-cake-adapt`.
+On a router not installed from these images, copy the script over and give it the image you want the first time: `sh image-upgrade -v tmhi-cake-adapt`.
+
+Up to 0.3.4 the images were called `tmog4ar` and `tmog4ar-cake-adapt`, and the `image-upgrade` in those images only looks for that name. Give it the new one once, `image-upgrade -v tmhi upgrade` (or `-v tmhi-cake-adapt`); the image you upgrade to knows its new name.
 
 The online firmware builders (firmware selector, `owut`, Attended Sysupgrade) only know about official packages, so their images can't include tmhi or cake-adapt. Reinstall them after upgrading with those, or upgrade with these images instead.
 

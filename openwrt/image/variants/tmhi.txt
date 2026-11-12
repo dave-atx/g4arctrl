@@ -1,5 +1,5 @@
-# The tmog4ar image (tmhi, under its old name): packages.txt plus these. The
-# file name is the image name (openwrt-<version>-tmog4ar-bcm27xx-bcm2712-rpi-5-...).
+# The tmhi image: packages.txt plus these. The file name is the image name
+# (openwrt-<version>-tmhi-bcm27xx-bcm2712-rpi-5-...).
 #
 # Same syntax as packages.txt, plus lines for packages that aren't in any
 # feed, which the build downloads and checks before adding to the image:
