@@ -1,0 +1,22 @@
+#!/bin/sh
+# Fake sleep: moves the clock on instead of waiting. When $T/sleeps-left
+# runs out, sends TERM to the caller (the daemon), as procd does on stop.
+# $T/on-sleep, if there, runs first: a test changing the world between
+# samples, with `at MIN` true when the clock is at that minute after BASE.
+echo $(($(cat "$T/now") + ${1%.*})) >"$T/now"
+stop=0
+if [ -f "$T/sleeps-left" ]; then
+	n=$(($(cat "$T/sleeps-left") - 1))
+	echo "$n" >"$T/sleeps-left"
+	if [ "$n" -le 0 ]; then
+		rm -f "${T:?}/sleeps-left"
+		stop=1
+	fi
+fi
+# Not BASE: tmhi has a variable of that name, and it's exported.
+# shellcheck disable=SC2329 # used by on-sleep
+at() { [ "$(cat "$T/now")" = $((T_BASE + $1 * 60)) ]; }
+# shellcheck disable=SC1091
+if [ -f "$T/on-sleep" ]; then (. "$T/on-sleep") || true; fi
+if [ "$stop" = 1 ]; then kill -TERM "$PPID"; fi
+exit 0

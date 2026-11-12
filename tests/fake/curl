@@ -1,0 +1,82 @@
+#!/bin/sh
+# Fake gateway. Serves $T/gw/all.json and $T/gw/cell.json, takes logins and
+# reboots, and logs each request to $T/requests ("METHOD path [auth]").
+# $T/gw/down: no answer. $T/gw/down-until: no answer before that time.
+# $T/gw/cell-fail: the telemetry answers 500. $T/gw/login-fail: logins are
+# refused. $T/gw/token-expired: the next telemetry request answers 401.
+out='' fmt='' method=GET url='' auth=''
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-o)
+		out=$2
+		shift
+		;;
+	-w)
+		fmt=$2
+		shift
+		;;
+	-X)
+		method=$2
+		shift
+		;;
+	-H)
+		case "$2" in @*) auth=" auth" ;; esac
+		shift
+		;;
+	--connect-timeout | --max-time) shift ;;
+	--data-binary)
+		cat >/dev/null
+		shift
+		;;
+	-*) ;;
+	*) url=$1 ;;
+	esac
+	shift
+done
+# Anything else over https (image-upgrade's downloads): $T/web/<host/path>.
+case "$url" in https://*)
+	echo "GET $url" >>"$T/requests"
+	f="$T/web/${url#https://}"
+	[ -f "$f" ] || exit 22
+	if [ -n "$out" ]; then cp "$f" "$out"; else cat "$f"; fi
+	exit 0
+	;;
+esac
+path=${url#*/TMI/v1/}
+echo "$method $path$auth" >>"$T/requests"
+answer() { # CODE [FILE]
+	if [ -n "$out" ]; then
+		if [ -n "${2:-}" ]; then cat "$2" >"$out"; else echo '{}' >"$out"; fi
+	elif [ -n "${2:-}" ]; then
+		cat "$2"
+	fi
+	[ -z "$fmt" ] || printf '%s' "$1"
+}
+if [ -f "$T/gw/down" ] || { [ -f "$T/gw/down-until" ] && [ "$(cat "$T/now")" -lt "$(cat "$T/gw/down-until")" ]; }; then
+	[ -z "$fmt" ] || printf '000'
+	exit 7
+fi
+case "$method $path" in
+"GET gateway/?get=all") answer 200 "$T/gw/all.json" ;;
+"GET network/telemetry/?get=cell")
+	if [ -z "$auth" ]; then
+		answer 401
+	elif [ -f "$T/gw/token-expired" ]; then
+		rm -f "${T:?}/gw/token-expired"
+		answer 401
+	elif [ -f "$T/gw/cell-fail" ]; then
+		answer 500
+	else
+		answer 200 "$T/gw/cell.json"
+	fi
+	;;
+"POST auth/login")
+	if [ -f "$T/gw/login-fail" ]; then
+		answer 401
+	else
+		echo '{"auth":{"token":"test-token"}}'
+	fi
+	;;
+"POST gateway/reset?set=reboot") answer 200 ;;
+*) answer 404 ;;
+esac

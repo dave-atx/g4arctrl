@@ -1,0 +1,37 @@
+{
+ "cell": {
+  "5g": {
+   "bandwidth": "20M",
+   "cqi": 15,
+   "earfcn": "396970",
+   "mcc": "310",
+   "mnc": "260",
+   "pci": "124",
+   "sector": {
+    "antennaUsed": "Internal_omni",
+    "bands": [
+     "n25"
+    ],
+    "bars": 4.0,
+    "cid": 102,
+    "gNBID": 1234567,
+    "rsrp": -93,
+    "rsrq": -10,
+    "rssi": -82,
+    "sinr": 14
+   },
+   "status": true,
+   "tac": "12345"
+  },
+  "generic": {
+   "apn": "FBB.HOME",
+   "hasIPv6": true,
+   "registration": "registered",
+   "roaming": false
+  },
+  "gps": {
+   "latitude": 47.6101,
+   "longitude": -122.2015
+  }
+ }
+}

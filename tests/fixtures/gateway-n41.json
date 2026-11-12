@@ -1,0 +1,38 @@
+{
+ "device": {
+  "friendlyName": "5G Gateway",
+  "hardwareVersion": "R01",
+  "manufacturer": "Arcadyan",
+  "macId": "02:00:00:00:00:01",
+  "model": "TMO-G4AR",
+  "name": "5G Gateway",
+  "serial": "TEST0001",
+  "softwareVersion": "1.00.18"
+ },
+ "signal": {
+  "5g": {
+   "antennaUsed": "Internal_omni",
+   "bands": [
+    "n41"
+   ],
+   "bars": 4.0,
+   "cid": 101,
+   "gNBID": 1234567,
+   "rsrp": -94,
+   "rsrq": -10,
+   "rssi": -83,
+   "sinr": 23
+  },
+  "generic": {
+   "apn": "FBB.HOME",
+   "hasIPv6": true,
+   "registration": "registered",
+   "roaming": false
+  }
+ },
+ "time": {
+  "localTime": 1793836800,
+  "localTimeZone": "-08:00",
+  "upTime": 3600
+ }
+}

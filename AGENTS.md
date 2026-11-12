@@ -15,6 +15,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
   - `htdocs/luci-static/resources/tmhi.js`: shared module (data access, health wording, charts, towers, the CSS).
   - `view/tmhi/status.js`, `settings.js`: Status → Cellular. `view/status/include/35_tmhi.js`: the Overview card. `view/dashboard/include/25_tmhi.js`: dashboard widgets.
   - `root/usr/share/rpcd/acl.d/`: which commands the pages may run. `po/templates/tmhi.pot`: strings for translation.
+- `tests/`: the test suite (see Testing).
 - `openwrt/image/`: the Raspberry Pi 5 image build. `packages.txt` is in every image; each file in `variants/` is one image (its name goes in the file names) with its own packages and `apk <url> <sha256>` downloads. `minimum-versions.txt` fails the build on an older package. `release-notes.sh` writes the package changes for a release. `image-upgrade` goes in every image as `/usr/sbin/image-upgrade`, with `/etc/g4arctrl-image` (repo, variant, tag) written by `build.sh`; it runs on the router, so the busybox / jq rules below apply (asset names are matched with grep, not jq's `test`). `docs/screenshots/`: the README images.
 
 ## How the pieces talk
@@ -32,8 +33,8 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
 
 ```sh
-shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
-shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
+shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
 npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
 for f in openwrt/luci-app-tmhi/root/usr/share/*/*/*.json; do jq empty "$f"; done
 actionlint
@@ -83,7 +84,10 @@ CI caches the built repository, keyed on the files the packages are built from, 
 
 ## Testing
 
-- Locally: a fake `uci` on `PATH` (answering `uci -q get tmhi.main.X` and `uci -q show tmhi`) plus a copy of some history lets you run `history`, `history --json` and the tower code without a router. Point `host` at something unreachable so nothing talks to a real gateway.
+- `sh tests/run.sh` runs the test suite (`sh tests/run.sh width tower` runs the tests whose file or name has one of those words; `TEST_SH=bash` runs tmhi under bash; `TMHI=/path/to/tmhi` tests another copy, e.g. to check a new test fails without the fix). CI's `test` job runs it under dash, bash and an OpenWrt rootfs (busybox, OpenWrt's jq), and the package build waits for it. To run it the OpenWrt way locally: `podman run --rm -v "$PWD:/src:ro" ghcr.io/openwrt/rootfs:<target>-<version> sh -c 'apk update && apk add jq && cd /src && sh tests/run.sh'`.
+- `node --test tests/luci/` tests the LuCI module's functions that don't need a page (health wording, units, towers, tooltip placement): it loads `tmhi.js` with stand-ins for `baseclass`, `_()` and `String.format`. Logic worth testing in a view goes into `tmhi.js` as a plain function first. Pages are checked in browsers (see LuCI rules).
+- Every bug fix comes with a test that fails without it, and new behaviour comes with tests. Each test is a `test_*` function in `tests/t-*.sh`, run in a fresh directory with fakes on `PATH` (`tests/fake/`): `uci` (settings from `cfg`), `curl` (a gateway serving `tests/fixtures/*.json`, which can be down, refuse logins or fail the telemetry), `date` / `sleep` (a clock that only moves when the daemon sleeps, so a day of samples takes a second), `logger`, `ubus`, `hotplug-call` and `ifstatus`. History fixtures are one line per sample in a short form (`history()` in `tests/lib.sh`). Fixtures follow the Privacy rules below.
+- Without the suite: a fake `uci` on `PATH` (answering `uci -q get tmhi.main.X` and `uci -q show tmhi`) plus a copy of some history lets you run `history`, `history --json` and the tower code without a router. Point `host` at something unreachable so nothing talks to a real gateway.
 - On a router: copy the script to a scratch directory and run it with a `uci` shim that runs `uci -c` against a private config directory, so it doesn't touch the installed package or the running daemon.
 - To install a dev build, copy to a new name and `mv` over `/usr/bin/tmhi`. The running daemon is a shell reading its script as it goes; overwriting the file in place can break it. After changing LuCI files, `rm -f /tmp/luci-indexcache*` so browsers fetch them again.
 - If the gateway is anyone's real internet connection: never run `tmhi reboot` or confirm the reboot dialog while testing, never save a wrong admin password (see the lockout above), and back up `/etc/config/tmhi` and the history first.

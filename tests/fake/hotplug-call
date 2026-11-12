@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake hotplug-call: records the hook variables in $T/hotplug.
+echo "$1 ACTION=$ACTION LEVEL=$LEVEL BAND=$BAND" >>"$T/hotplug"

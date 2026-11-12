@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fake date: "now" is $T/now. -r and -d go to the real date.
+case "${1:-}" in
+-r | -d) exec "$REAL_DATE" "$@" ;;
+esac
+exec "$REAL_DATE" -d "@$(cat "$T/now")" "$@"

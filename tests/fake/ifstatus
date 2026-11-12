@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake ifstatus: the wan interface is on wan0.
+[ "$1" = wan ] && echo '{"up":true,"l3_device":"wan0"}'

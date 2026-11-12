@@ -1,0 +1,14 @@
+#!/bin/sh
+# Fake logger: "TIME PRIORITY MESSAGE" lines in $T/syslog.
+prio=''
+while [ $# -gt 1 ]; do
+	case "$1" in
+	-p)
+		prio=${2#daemon.}
+		shift
+		;;
+	-t) shift ;;
+	esac
+	shift
+done
+echo "$(cat "$T/now") $prio $1" >>"$T/syslog"

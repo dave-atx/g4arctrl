@@ -1,0 +1,8 @@
+#!/bin/sh
+# Fake sysupgrade: -l lists kept files, -T tests an image (fails if
+# $T/sysupgrade-reject exists), -v "upgrades" (recorded in $T/sysupgrade).
+case "$1" in
+-l) printf '/etc/config/network\n/etc/config/tmhi\n' ;;
+-T) [ ! -f "$T/sysupgrade-reject" ] ;;
+-v) echo "upgrade ${2##*/}" >>"$T/sysupgrade" ;;
+esac

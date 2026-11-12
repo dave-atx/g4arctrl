@@ -1,0 +1,18 @@
+#!/bin/sh
+# Fake uci over real config files in $T/etc/config: only
+# `uci -q get CONFIG.SECTION.OPTION` with named sections.
+[ "$1" = -q ] && shift
+[ "$1" = get ] || exit 1
+conf=${2%%.*} rest=${2#*.}
+sec=${rest%%.*} opt=${rest#*.}
+[ -f "$T/etc/config/$conf" ] || exit 1
+awk -v sec="$sec" -v opt="$opt" -v q="'" '
+# No \047 in a regex: busybox awk does not take it there.
+function unq(s,   c) {
+	c = substr(s, 1, 1)
+	if ((c == q || c == "\"") && substr(s, length(s)) == c) s = substr(s, 2, length(s) - 2)
+	return s
+}
+$1 == "config" { in_sec = (unq($3) == sec) }
+in_sec && $1 == "option" && $2 == opt { v = $0; sub(/^[ \t]*option[ \t]+[^ \t]+[ \t]+/, "", v); print unq(v); found = 1; exit }
+END { exit !found }' "$T/etc/config/$conf"

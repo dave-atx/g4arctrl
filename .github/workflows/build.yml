@@ -30,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
-          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade
+          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
@@ -39,9 +39,36 @@ jobs:
       - name: JSON (menu, ACL)
         run: for f in openwrt/luci-app-tmhi/root/usr/share/*/*/*.json; do jq empty "$f" || exit 1; done
 
+  # tests/run.sh: the CLI against a fake gateway, clock and router (see
+  # tests/lib.sh), under dash and bash, then the way it runs on a router:
+  # busybox ash and awk, and OpenWrt's jq (no regex functions). tests/luci:
+  # the LuCI module's pure functions, under node.
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: dash and bash
+        run: |
+          sh tests/run.sh
+          TEST_SH=bash sh tests/run.sh
+
+      - name: LuCI module
+        run: node --test tests/luci/
+
+      - name: OpenWrt
+        run: |
+          docker run --rm -v "$PWD:/src:ro" "ghcr.io/openwrt/rootfs:x86_64-$OPENWRT_VERSION" sh -c '
+            set -e
+            apk update >/dev/null
+            apk add jq >/dev/null
+            cd /src
+            sh tests/run.sh'
+
   package:
     name: package
-    needs: lint
+    needs: [lint, test]
     runs-on: ubuntu-latest
     # The SDK download from the OpenWrt mirrors can stall with no error; a
     # normal build takes 5-25 minutes.

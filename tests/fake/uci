@@ -1,0 +1,26 @@
+#!/bin/sh
+# Fake uci: tmhi.main options from $T/uci (OPTION=VALUE lines), towers from
+# $T/towers (radio, id, name, lat, lon, tab separated).
+[ "$1" = -q ] && shift
+case "$1 $2" in
+"get tmhi.main."*)
+	v=$(sed -n "s/^${2#tmhi.main.}=//p" "$T/uci" 2>/dev/null | tail -n 1)
+	[ -n "$v" ] || exit 1
+	printf '%s\n' "$v"
+	;;
+"show tmhi")
+	echo "tmhi.main=tmhi"
+	sed "s/^\([^=]*\)=\(.*\)/tmhi.main.\1='\2'/" "$T/uci" 2>/dev/null
+	n=0
+	[ -f "$T/towers" ] && while IFS='	' read -r radio id name lat lon; do
+		n=$((n + 1))
+		echo "tmhi.cfg$n=tower"
+		echo "tmhi.cfg$n.radio='$radio'"
+		echo "tmhi.cfg$n.id='$id'"
+		echo "tmhi.cfg$n.name='$name'"
+		[ -z "$lat" ] || echo "tmhi.cfg$n.lat='$lat'"
+		[ -z "$lon" ] || echo "tmhi.cfg$n.lon='$lon'"
+	done <"$T/towers"
+	;;
+*) exit 1 ;;
+esac

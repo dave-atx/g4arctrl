@@ -1,0 +1,4 @@
+#!/bin/sh
+# Fake ubus: events go to $T/ubus, one JSON object per line.
+[ "$1" = send ] && printf '%s\n' "$3" >>"$T/ubus"
+exit 0
