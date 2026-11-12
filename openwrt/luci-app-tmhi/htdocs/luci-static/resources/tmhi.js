@@ -11,7 +11,7 @@
 const CLI = '/usr/bin/tmhi';
 
 // The daemon rewrites this every minute. Reading it costs the gateway nothing.
-const LATEST = '/tmp/tmhi-0/latest.json';
+const LATEST = '/var/run/tmhi/latest.json';
 
 // "Refresh" asks the gateway only if the newest sample is older than this.
 const REFRESH_AGE = 15;

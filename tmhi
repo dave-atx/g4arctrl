@@ -54,7 +54,13 @@ AR_IDLE_MINUTES=$(cfg_int auto_reboot_idle_minutes 15)
 WAN_DEVICE=$(cfg wan_device '') # empty: the wan interface's device
 
 BASE="http://${HOST}:${PORT}/TMI/v1"
-RUN_DIR="${TMPDIR:-/tmp}/tmhi-$(id -u)"
+# Runtime state (RAM). Root (the daemon, LuCI, an SSH shell) shares
+# /var/run/tmhi; anyone else, e.g. testing on a laptop, gets their own.
+if [ "$(id -u)" = 0 ]; then
+	RUN_DIR=/var/run/tmhi
+else
+	RUN_DIR="${TMPDIR:-/tmp}/tmhi-$(id -u)"
+fi
 TOKEN_FILE="$RUN_DIR/auth-header"
 # Samples collect here (RAM on OpenWrt) and go to flash in one append per
 # flush_minutes, to keep small writes off the SD card.

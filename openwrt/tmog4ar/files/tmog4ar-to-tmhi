@@ -13,7 +13,7 @@ new_conf=/etc/config/tmhi
 old_hist=/root/.tmog4ar
 new_hist=/root/.tmhi
 old_run=/tmp/tmog4ar-0
-new_run=/tmp/tmhi-0
+new_run=/var/run/tmhi
 
 # move_into OLD NEW: move every file in directory OLD into NEW. Where NEW
 # already has a file of that name (tmhi may have written some already), its
