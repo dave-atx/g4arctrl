@@ -1,5 +1,5 @@
 // Unit tests for the LuCI module's pure functions (health wording, units,
-// towers, tooltip placement). Run with: node --test tests/luci/
+// towers, tooltip placement). Run with: node --test tests/luci/*.test.mjs
 //
 // tmhi.js is a LuCI module: a function body that returns
 // baseclass.extend({...}). It is loaded here with just enough of LuCI around

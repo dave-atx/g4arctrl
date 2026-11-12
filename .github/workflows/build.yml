@@ -55,7 +55,7 @@ jobs:
           TEST_SH=bash sh tests/run.sh
 
       - name: LuCI module
-        run: node --test tests/luci/
+        run: node --test tests/luci/*.test.mjs
 
       - name: OpenWrt
         run: |
