@@ -394,13 +394,31 @@ function distdir(lat1, lon1, lat2, lon2, units,   r1, r2, dl, a, d, y, x, b, dir
 	i = int((b + 22.5) / 45) % 8 + 1
 	return sprintf("%.1f %s %s %s (%d°)", d, (units == "metric") ? "km" : "mi", arr[i], dirs[i], b + 0.5)
 }
+# Channel width in MHz of this sample, "-" if unknown. The width comes from
+# the cell telemetry, which needs the admin login, so a sample can miss it (a
+# login that failed or timed out, the first sample after an upgrade) while
+# the band and tower stay the same. Such a sample keeps the previous width,
+# for up to 5 samples in a row; after that the width counts as unknown.
+function width(   rad, b, w, id) {
+	if (W_nr == NR) return W_v
+	W_nr = NR
+	b = f("nr_bands"); rad = "nr"
+	if (b == "-") { b = f("lte_bands"); rad = "lte" }
+	w = f(rad "_bw"); id = f("reg") SUBSEP b SUBSEP f(rad "_nb") SUBSEP f(rad "_cid")
+	if (w != "-") { W_last = w; W_held = 0 }
+	else if (W_last != "-" && W_last != "" && id == W_id && $1 - W_t <= gap && ++W_held <= 5) w = W_last
+	else W_last = "-"
+	W_id = id; W_t = $1
+	return W_v = w
+}
 # What the gateway is on, e.g. "n41 100 MHz", "n41" (width unknown), "LTE b66 20 MHz"
 function key(   nb, lb, bw, k, r) {
+	bw = width()
 	r = f("reg")
 	if (r != "registered") return "(" r ")"
 	nb = f("nr_bands"); lb = f("lte_bands")
-	if (nb != "-") { k = nb; bw = f("nr_bw") }
-	else if (lb != "-") { k = "LTE " lb; bw = f("lte_bw") }
+	if (nb != "-") k = nb
+	else if (lb != "-") k = "LTE " lb
 	else return "(no signal)"
 	if (bw != "-") k = k " " bw " MHz"
 	return k
@@ -408,6 +426,7 @@ function key(   nb, lb, bw, k, r) {
 # Good = registered, on a preferred band, and (if known) at least minbw wide.
 # Sets WHY to a description when not good.
 function good(   nb, lb, i, ok, bw, r) {
+	bw = width()
 	r = f("reg")
 	if (r == "unreachable") { WHY = "gateway unreachable"; return 0 }
 	if (r != "registered") { WHY = "not registered (" r ")"; return 0 }
@@ -415,7 +434,6 @@ function good(   nb, lb, i, ok, bw, r) {
 	ok = 0
 	for (i = 1; i <= npref; i++) if (P[i] != "" && index("," nb "," lb ",", "," P[i] ",")) ok = 1
 	if (!ok) { WHY = "on " key() ", not " prefstr; return 0 }
-	bw = (nb != "-") ? f("nr_bw") : f("lte_bw")
 	if (bw != "-" && bw + 0 < minbw + 0) { WHY = "on " key() " (narrower than " minbw " MHz)"; return 0 }
 	WHY = ""
 	return 1

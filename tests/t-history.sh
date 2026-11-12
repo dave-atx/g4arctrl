@@ -4,7 +4,67 @@
 
 # Samples: reg band bw rsrp sinr id cid pci arfcn (see history() in lib.sh)
 N41="registered n41 100 -94 23 1234567 101 123 501390"
+N41_NOWIDTH="registered n41 - -94 23 1234567 101 - -"
 N25="registered n25 20 -93 14 1234567 102 124 396970"
+
+# 0.4.0 upgrade on a real router: one sample lacked the cell telemetry (no
+# login yet), so it had no width, and the change list showed
+# "n41 100 MHz -> n41" and back again.
+test_width_missing_for_one_sample_is_no_change() {
+	history <<-E
+		0 $N41 x10
+		10 $N41_NOWIDTH
+		11 $N41 x10
+	E
+	clock 30
+	eq "$(changes 1h)" "" changes
+	eq "$(json '[.bands[].key] | join(",")')" "n41 100 MHz" bands
+	tmhi history -s 1h
+	hasnt "→ n41"
+}
+
+# A held width still decides good / bad: a narrow n41 stays bad.
+test_held_width_still_counts_as_narrow() {
+	history <<-E
+		0 registered n41 20 -94 23 1234567 101 123 501390 x5
+		5 $N41_NOWIDTH x2
+		7 registered n41 20 -94 23 1234567 101 123 501390 x5
+	E
+	clock 20
+	eq "$(changes 1h)" "" changes
+	eq "$(json '[.bands[] | "\(.key) \(.good) \(.samples)"] | join(",")')" "n41 20 MHz false 12" bands
+}
+
+# Telemetry gone for good (password removed): after 5 samples the width
+# counts as unknown.
+test_width_missing_for_long_is_a_change() {
+	history <<-E
+		0 $N41 x5
+		5 $N41_NOWIDTH x10
+	E
+	clock 20
+	eq "$(changes 1h)" "10 band n41 100 MHz -> n41" changes
+}
+
+# A width isn't carried to another band, another tower, or across an outage.
+test_width_not_held_across_band_tower_or_outage() {
+	history <<-E
+		0 $N41 x5
+		5 registered n25 - -93 14 1234567 102 - -
+		6 $N41 x5
+		11 registered n41 - -94 23 7654321 201 - -
+		12 $N41 x5
+		17 unreachable
+		18 $N41_NOWIDTH
+	E
+	clock 30
+	eq "$(changes 1h)" "5 band n41 100 MHz -> n25
+6 band n25 -> n41 100 MHz
+11 band n41 100 MHz -> n41 tower 1234567 -> 7654321
+12 band n41 -> n41 100 MHz tower 7654321 -> 1234567
+17 band n41 100 MHz -> (unreachable)
+18 band (unreachable) -> n41" changes
+}
 
 test_band_change_and_good() {
 	cfg min_bw 40

@@ -114,6 +114,18 @@ test_health_down() {
 	has "DOWN"
 }
 
+# The live sample misses the telemetry for once: it keeps the width from
+# history instead of reading "n41".
+test_health_keeps_width_when_telemetry_fails() {
+	history <<-E
+		0 $N41 x10
+	E
+	gateway_cell fail
+	clock 10
+	tmhi status --json
+	eq "$(json '[.nr_bw, .health.key] | map(tostring) | join(" ")')" "null n41 100 MHz" fields
+}
+
 test_login_token_reused() {
 	clock 10
 	tmhi status --json
