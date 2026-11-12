@@ -34,9 +34,15 @@ const CSS = `
 	--tmhi-fair: var(--warn-color-high, #e0a800);
 	--tmhi-poor: var(--error-color-high, #d9534f);
 	--tmhi-muted: var(--text-color-medium, #6b7280);
+	--tmhi-mostly: #9acd5a;
 	--tmhi-line: var(--border-color-medium, rgba(127, 127, 127, 0.25));
 	--tmhi-accent: var(--primary-color-high, #1976d2);
 	--tmhi-surface: var(--background-color-medium, rgba(127, 127, 127, 0.08));
+}
+
+/* Between good and fair, for "mostly good" hours. */
+@supports (color: color-mix(in srgb, red, blue)) {
+	:root { --tmhi-mostly: color-mix(in srgb, var(--tmhi-good), var(--tmhi-fair)); }
 }
 
 /* ---- Health -------------------------------------------------------- */
@@ -733,7 +739,7 @@ return baseclass.extend({
 
 		(bands || []).forEach(band => {
 			if (band.key == '(unreachable)')
-				colours[band.key] = '#6b7280';
+				colours[band.key] = 'var(--tmhi-muted)';
 			else if (band.key.charAt(0) == '(')
 				colours[band.key] = '#9ca3af';
 			else if (band.good)
@@ -750,7 +756,7 @@ return baseclass.extend({
 		if (share >= 0.99)
 			return 'var(--tmhi-good)';
 		if (share >= 0.9)
-			return '#9acd5a';
+			return 'var(--tmhi-mostly)';
 		if (share >= 0.5)
 			return 'var(--tmhi-fair)';
 
@@ -794,7 +800,7 @@ return baseclass.extend({
 
 			strip.appendChild(E('span', {
 				'class': good ? 'good' : 'bad',
-				'style': 'left:%.3f%%;width:%.3f%%;background:%s'.format((a - t0) / (t1 - t0) * 100, Math.max(0.15, (b - a) / (t1 - t0) * 100), colours[key] || '#999'),
+				'style': 'left:%.3f%%;width:%.3f%%;background:%s'.format((a - t0) / (t1 - t0) * 100, Math.max(0.15, (b - a) / (t1 - t0) * 100), colours[key] || 'var(--tmhi-muted)'),
 				'title': '%s\n%s – %s (%s)'.format(key, this.dateTime(a, h.tzoff), this.dateTime(b, h.tzoff), this.dur(b - a))
 			}));
 		});

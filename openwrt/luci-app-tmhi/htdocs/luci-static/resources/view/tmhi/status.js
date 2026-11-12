@@ -458,7 +458,7 @@ return view.extend({
 		const events = h.events.slice().reverse();
 		const shown = this.allEvents ? events : events.slice(0, EVENTS_SHOWN);
 		const band = (key, good) => E('span', { 'class': good ? '' : 'tmhi-poor-text' }, [
-			E('i', { 'style': 'display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.3em;background:' + (colours[key] || '#999') }), key
+			E('i', { 'style': 'display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.3em;background:' + (colours[key] || 'var(--tmhi-muted)') }), key
 		]);
 
 		const rows = shown.map(e => {
