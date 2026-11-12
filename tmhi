@@ -12,7 +12,7 @@
 set -eu
 umask 077
 
-VERSION=0.3.4 # keep in step with PKG_VERSION in openwrt/tmhi/Makefile
+VERSION=0.4.0 # keep in step with PKG_VERSION in openwrt/tmhi/Makefile
 
 # Settings live in UCI: /etc/config/tmhi, section "main" (see tmhi.config).
 # Without uci (not OpenWrt), everything takes its default.
