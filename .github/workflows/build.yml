@@ -30,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
-          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
@@ -177,14 +177,16 @@ jobs:
       - name: Install on OpenWrt main
         run: |
           docker run --rm -v "$PWD/bin/packages/aarch64_generic/action:/repo:ro" \
+            -v "$PWD/openwrt/tmhi:/pkg:ro" \
             ghcr.io/openwrt/rootfs:x86_64-main sh -c '
               set -e
               # procd init scripts lock here; without it, rpcd post-installs fail.
               mkdir -p /var/lock
               apk update
               apk add --allow-untrusted /repo/tmhi-*.apk /repo/luci-app-tmhi-*.apk
-              tmhi version
-              uci -q get tmhi.main.host'
+              uci -q get tmhi.main.host
+              # The runtime test openwrt/packages CI runs after installing.
+              PKG_NAME=tmhi PKG_VERSION=$(sed -n "s/^PKG_VERSION:=//p" /pkg/Makefile) sh /pkg/test.sh'
 
   image:
     name: rpi-5 images

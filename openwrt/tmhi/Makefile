@@ -15,8 +15,8 @@ PKG_MAINTAINER:=Dave Marquard <dave@marquard.org>
 include $(INCLUDE_DIR)/package.mk
 
 define Package/tmhi
-  SECTION:=utils
-  CATEGORY:=Utilities
+  SECTION:=net
+  CATEGORY:=Network
   TITLE:=Status, history and stuck-band detection for T-Mobile Home Internet
   URL:=https://github.com/dave-atx/g4arctrl
   PKGARCH:=all
@@ -48,7 +48,7 @@ define Package/tmhi/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/tmhi.hotplug $(1)/etc/hotplug.d/tmhi/50-example
 	# Keep history (the default history_dir) and every notification hook,
 	# including ones added by hand, across sysupgrade.
-	printf '%s\n' /etc/tmhi/ /etc/hotplug.d/tmhi/ > $(1)/lib/upgrade/keep.d/tmhi
+	$(INSTALL_DATA) ./files/tmhi.keep $(1)/lib/upgrade/keep.d/tmhi
 endef
 
 $(eval $(call BuildPackage,tmhi))

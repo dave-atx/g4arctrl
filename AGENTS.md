@@ -7,7 +7,7 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 - `tmhi`: the CLI, one POSIX shell script. Runs on the router under busybox ash; also dash / bash.
 - `tmhi.init`, `tmhi.config`: the procd service and the default `/etc/config/tmhi`.
 - `tmhi.hotplug`: installed as `/etc/hotplug.d/tmhi/50-example`, a notification hook that's all comments. Every file in that directory is sourced by `hotplug-call`, so it has to stay valid shell that does nothing.
-- `openwrt/tmhi/`: the package Makefile.
+- `openwrt/tmhi/`: the package, kept exactly as it goes into openwrt/packages (`net/tmhi/`): the Makefile, `files/`, and `test.sh`, the runtime test openwrt/packages CI runs after installing it (our `package (main)` job runs it too). It has no gateway to talk to, so it checks the version, an unreachable gateway and reading back history.
 - `openwrt/tmog4ar/`: transitional `tmog4ar` and `luci-app-tmog4ar` packages (tmhi was called tmog4ar until 0.4.0). They depend on the new packages, and `files/tmog4ar-to-tmhi` is a uci-defaults script that moves the old settings, history, hooks and run state over, after `apk upgrade` or at first boot after a sysupgrade. They're only for this repo's feed and images, never upstream. A few names stay `tmog4ar` on purpose: the signing key `openwrt/tmog4ar.pem` (routers have it as `/etc/apk/keys/tmog4ar.pem`) and the repo / Pages URL (`dave-atx.github.io/g4arctrl/`). The image variants were `tmog4ar` and `tmog4ar-cake-adapt` until 0.4.0: `image-upgrade` and `release-notes.sh` map those names to the new ones, but the `image-upgrade` already on those routers can't, so they need `-v tmhi` once.
 - `openwrt/source-tarball.sh`: makes `tmhi-<version>.tar.xz`, the source archive the tmhi Makefile downloads from the GitHub release (`PKG_SOURCE_URL`, `PKG_HASH`), as openwrt/packages expects. It holds only the files the package installs plus `LICENSE`, with fixed owners, modes and mtime, so it comes out byte for byte the same on any machine (checked with xz 5.4.5, 5.8.1 and 5.8.4).
 - `openwrt/sdk-build.sh`: CI's package build, run in the `ghcr.io/openwrt/sdk` release container, which already holds the SDK (`openwrt/gh-action-sdk` downloads it again from the OpenWrt mirrors, and a slow mirror hung CI).
@@ -33,8 +33,8 @@ Notes for anyone (human or agent) changing this repo. The README covers what it 
 CI's `lint` job runs these, and the package build waits for it. Run them before pushing:
 
 ```sh
-shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
-shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
 npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
 for f in openwrt/luci-app-tmhi/root/usr/share/*/*/*.json; do jq empty "$f"; done
 actionlint
