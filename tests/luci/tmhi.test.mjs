@@ -55,6 +55,30 @@ test('tooltip stays inside the plot when neither side fits', () => {
 	assert.equal(tmhi.tipLeft(150, 400, 300), 0);
 });
 
+// ---- Details popover placement --------------------------------------------------
+
+// Strip segment at 300..328 px in an 800 x 600 viewport, popover 200 x 40.
+test('details popover goes below the item, centred on the tap', () => {
+	assert.deepEqual(tmhi.popPlace(400, 300, 328, [ 200, 40 ], [ 800, 600 ]), { left: 300, top: 334 });
+});
+
+test('details popover goes above the item when there is no room below', () => {
+	assert.deepEqual(tmhi.popPlace(400, 560, 588, [ 200, 40 ], [ 800, 600 ]), { left: 300, top: 514 });
+});
+
+test('details popover fitting neither side takes the roomier one', () => {
+	// 200 px tall in a 300 px viewport: 100 above, 160 below.
+	assert.deepEqual(tmhi.popPlace(400, 100, 140, [ 200, 200 ], [ 800, 300 ]), { left: 300, top: 146 });
+	// 160 above, 100 below.
+	assert.deepEqual(tmhi.popPlace(400, 160, 200, [ 200, 200 ], [ 800, 300 ]), { left: 300, top: -46 });
+});
+
+test('details popover stays inside the viewport sideways', () => {
+	// Phone width: a tap near either edge.
+	assert.equal(tmhi.popPlace(10, 300, 328, [ 250, 40 ], [ 412, 800 ]).left, 6);
+	assert.equal(tmhi.popPlace(405, 300, 328, [ 250, 40 ], [ 412, 800 ]).left, 156);
+});
+
 // ---- Words -------------------------------------------------------------------
 
 test('dur', () => {

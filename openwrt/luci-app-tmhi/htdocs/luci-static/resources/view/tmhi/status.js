@@ -224,9 +224,14 @@ return view.extend({
 				E('button', {
 					'class': 'cbi-button cbi-button-negative',
 					'disabled': canReboot ? null : '',
-					'title': canReboot ? null : _('Needs the admin password (Settings)'),
 					'click': ui.createHandlerFn(this, 'handleReboot')
-				}, [ _('Reboot gateway…') ])
+				}, [ _('Reboot gateway…') ]),
+				// Said in words, not a title: a disabled button shows no
+				// tooltip on a touch screen, or in some browsers at all.
+				canReboot ? '' : E('span', { 'class': 'tmhi-updated' }, [
+					_('Rebooting needs the admin password:'), ' ',
+					E('a', { 'href': L.url('admin/status/tmhi/settings') }, [ _('Settings') ])
+				])
 			])
 		]);
 
@@ -444,7 +449,7 @@ return view.extend({
 		const events = h.events.slice().reverse();
 		const shown = this.allEvents ? events : events.slice(0, EVENTS_SHOWN);
 		const band = (key, good) => E('span', { 'class': good ? '' : 'tmhi-poor-text' }, [
-			E('i', { 'style': 'display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.3em;background:' + (colours[key] || 'var(--tmhi-muted)') }), key
+			E('i', { 'class': 'tmhi-swatch', 'style': 'display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.3em;background:' + (colours[key] || 'var(--tmhi-muted)') }), key
 		]);
 
 		const rows = shown.map(e => {
@@ -508,10 +513,12 @@ return view.extend({
 		const t0 = Math.max(h.since, h.first);
 		const colours = tmhi.palette(h.bands);
 
+		tmhi.hideDetails();
+
 		dom.content(this.historyNode, [
 			this.renderSummary(h, t0),
 
-			E('div', { 'class': 'tmhi-sub', 'data-place': 'sub:strip' }, [ _('Band over time') ]),
+			E('div', { 'class': 'tmhi-sub', 'data-place': 'sub:strip' }, [ _('Band over time'), ' ', E('small', { 'class': 'tmhi-muted' }, [ _('tap or click a stretch for its times') ]) ]),
 			tmhi.bandStrip(h, t0, t1, colours),
 			tmhi.legend(h.bands.map(b => ({ colour: colours[b.key], label: b.key, value: '%.1f%%'.format(b.samples / h.samples * 100) }))),
 
@@ -523,7 +530,7 @@ return view.extend({
 				tmhi.lineChart({ h: h, t0: t0, t1: t1, index: 3, metric: 'rsrp', unit: _('dBm'), label: _('RSRP') })
 			]),
 
-			E('div', { 'class': 'tmhi-sub', 'data-place': 'sub:heat' }, [ _('Good samples by hour') ]),
+			E('div', { 'class': 'tmhi-sub', 'data-place': 'sub:heat' }, [ _('Good samples by hour'), ' ', E('small', { 'class': 'tmhi-muted' }, [ _('tap or click an hour for details') ]) ]),
 			tmhi.heatmap(h),
 			tmhi.legend([
 				{ colour: tmhi.goodColour(1), label: _('99% or more') },

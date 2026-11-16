@@ -143,6 +143,27 @@ const CSS = `
 	bottom: 0;
 }
 .tmhi-strip > span.bad { top: 0; bottom: 0; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.25); }
+.tmhi-strip > span[title], .tmhi-heat-cell[title] { cursor: pointer; }
+
+/* What a tapped strip segment or heatmap hour holds (tapDetails()). */
+.tmhi-pop {
+	position: absolute;
+	inset: auto;
+	margin: 0;
+	max-width: min(22em, calc(100vw - 12px));
+	box-sizing: border-box;
+	padding: 0.3em 0.6em;
+	font-size: 85%;
+	white-space: pre-line;
+	color: var(--text-color-high, CanvasText);
+	background: var(--background-color-high, Canvas);
+	border: 1px solid var(--tmhi-line);
+	border-radius: 3px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	/* Taps go through to what it covers (on a phone, the next day of the
+	   heatmap): light dismiss closes it and the tapped item opens its own. */
+	pointer-events: none;
+}
 
 .tmhi-axis {
 	position: relative;
@@ -206,6 +227,10 @@ const CSS = `
 	flex: 1;
 	border-left: 1px solid var(--tmhi-line);
 	border-bottom: 1px solid var(--tmhi-line);
+	/* A sideways drag moves the cursor; up and down still scroll the page.
+	   Safari has no pinch-zoom value and keeps the first line. */
+	touch-action: pan-y;
+	touch-action: pan-y pinch-zoom;
 }
 .tmhi-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .tmhi-minmax { fill: var(--tmhi-accent); fill-opacity: 0.18; stroke: none; }
@@ -284,6 +309,22 @@ const CSS = `
 	line-height: 1.35;
 	color: var(--tmhi-muted);
 }
+
+/* ---- High contrast ------------------------------------------------- */
+
+/* Forced colours (Windows high contrast) swap author colours for system
+   ones, which would blank the band strip, heatmap, meters and swatches:
+   their colour is the information, so they keep it. */
+@media (forced-colors: active) {
+	.tmhi-strip > span,
+	.tmhi-heat-cell,
+	.tmhi-meter-bar > span,
+	.tmhi-legend i,
+	.tmhi-swatch,
+	.tmhi-plot svg { forced-color-adjust: none; }
+	.tmhi-strip,
+	.tmhi-meter-bar { border: 1px solid CanvasText; }
+}
 `;
 
 function svg(tag, attrs, children) {
@@ -319,6 +360,13 @@ function parseJSON(res) {
 function shifted(t, tzoff) {
 	return new Date((t + (tzoff || 0)) * 1000);
 }
+
+// The chart tooltip a tap left open, closed by the next tap anywhere else.
+let shownTip = null, tipWatch = false;
+
+// The details popover, one for the page (see tapDetails()), and the item it
+// was open for when the current tap started.
+let detailPop = null, detailFor = null, tapWasOpenFor = null;
 
 const fmtCache = {};
 
@@ -910,12 +958,89 @@ return baseclass.extend({
 			}));
 		});
 
+		this.tapDetails(strip);
+
 		return E('div', { 'class': 'tmhi-stripbox' }, [ strip, this.axis(t0, t1, h.tzoff) ]);
 	},
 
-	// A line chart of one metric from history buckets: the average as a line
-	// and min..max as a band behind it. Missing buckets leave gaps.
-	//   opts: { h, t0, t1, index (3 rsrp, 4 sinr), metric, unit, label }
+	// Where the details popover goes, in viewport px, for a tap at x on an
+	// item spanning top..bottom: centred on the tap, below the item if it
+	// fits (or fits better than above), and never past either side.
+	//   size: popover [w, h]; view: viewport [w, h]
+	popPlace(x, top, bottom, size, view) {
+		const gap = 6;
+		const below = (bottom + gap + size[1] <= view[1]) || (top - gap - size[1] < 0 && view[1] - bottom >= top);
+
+		return {
+			left: Math.max(gap, Math.min(x - size[0] / 2, view[0] - gap - size[0])),
+			top: below ? bottom + gap : top - gap - size[1]
+		};
+	},
+
+	// Tapping or clicking an item with a title (a band strip segment, a
+	// heatmap hour) shows the title in a popover, since a title alone shows
+	// only on mouse hover. A second tap on the same item closes it; Escape or
+	// a tap elsewhere closes it too (light dismiss). Without the Popover API
+	// the titles are all there is.
+	tapDetails(container) {
+		if (!Object.hasOwn(window.HTMLElement.prototype, 'popover'))
+			return;
+
+		const itemAt = ev => {
+			const el = ev.target.closest('[title]');
+
+			return (el && container.contains(el)) ? el : null;
+		};
+
+		// Light dismiss closes an open popover before the click arrives, so
+		// remember now which item it was open for.
+		container.addEventListener('pointerdown', () => {
+			tapWasOpenFor = (detailPop && detailPop.matches(':popover-open')) ? detailFor : null;
+		});
+
+		container.addEventListener('click', ev => {
+			const el = itemAt(ev);
+
+			if (!el)
+				return;
+
+			if (!detailPop) {
+				detailPop = E('div', { 'class': 'tmhi-pop', 'popover': 'auto' });
+				document.body.appendChild(detailPop);
+			}
+
+			if (detailPop.matches(':popover-open'))
+				detailPop.hidePopover();
+
+			if (tapWasOpenFor === el) {
+				tapWasOpenFor = detailFor = null;
+				return;
+			}
+
+			detailFor = el;
+			detailPop.textContent = el.getAttribute('title');
+			detailPop.showPopover();
+
+			const rect = el.getBoundingClientRect();
+			const at = this.popPlace(ev.clientX || (rect.left + rect.width / 2), rect.top, rect.bottom,
+				[ detailPop.offsetWidth, detailPop.offsetHeight ],
+				[ document.documentElement.clientWidth, window.innerHeight ]);
+
+			// Positioned in the page rather than the viewport, so it scrolls
+			// with the item it belongs to.
+			detailPop.style.left = '%.1fpx'.format(at.left + window.scrollX);
+			detailPop.style.top = '%.1fpx'.format(at.top + window.scrollY);
+		});
+	},
+
+	// Close the details popover, e.g. before a redraw replaces its item.
+	hideDetails() {
+		if (detailPop && detailPop.matches(':popover-open'))
+			detailPop.hidePopover();
+
+		detailFor = null;
+	},
+
 	// Where a tooltip w px wide goes for a cursor at x in a plot width px
 	// wide: right of the cursor if it fits, else left of it, and never past
 	// either edge, because the page around the plot clips what sticks out.
@@ -926,6 +1051,9 @@ return baseclass.extend({
 		return Math.max(0, Math.min(at, width - w));
 	},
 
+	// A line chart of one metric from history buckets: the average as a line
+	// and min..max as a band behind it. Missing buckets leave gaps.
+	//   opts: { h, t0, t1, index (3 rsrp, 4 sinr), metric, unit, label }
 	lineChart(opts) {
 		const h = opts.h, t0 = opts.t0, t1 = opts.t1;
 		const m = METRICS[opts.metric];
@@ -1000,8 +1128,10 @@ return baseclass.extend({
 			cursor, tip
 		]);
 
-		// Hover shows the nearest bucket.
-		plot.addEventListener('mousemove', ev => {
+		const hide = () => { tip.style.display = cursor.style.display = 'none'; };
+
+		// Hovering, tapping or dragging sideways shows the nearest bucket.
+		const show = ev => {
 			const rect = plot.getBoundingClientRect();
 			const t = t0 + (ev.clientX - rect.left) / rect.width * (t1 - t0);
 			let best = null;
@@ -1012,7 +1142,7 @@ return baseclass.extend({
 			});
 
 			if (best == null || Math.abs(best[0] + h.bucket / 2 - t) > h.bucket * 2) {
-				tip.style.display = cursor.style.display = 'none';
+				hide();
 				return;
 			}
 
@@ -1026,8 +1156,26 @@ return baseclass.extend({
 			// Measured at the left edge, where it has the whole width to wrap in.
 			tip.style.left = '0';
 			tip.style.left = '%.1fpx'.format(this.tipLeft(left / 100 * rect.width, tip.offsetWidth, rect.width));
-		});
-		plot.addEventListener('mouseleave', () => { tip.style.display = cursor.style.display = 'none'; });
+			shownTip = { plot: plot, hide: hide };
+		};
+
+		plot.addEventListener('pointerdown', show);
+		plot.addEventListener('pointermove', show);
+		// A mouse that leaves takes the tooltip with it. A lifted finger
+		// "leaves" too, but its tooltip stays until the next tap elsewhere.
+		plot.addEventListener('pointerleave', ev => { if (ev.pointerType == 'mouse') hide(); });
+		// The browser took the touch to scroll the page.
+		plot.addEventListener('pointercancel', hide);
+
+		if (!tipWatch) {
+			tipWatch = true;
+			document.addEventListener('pointerdown', ev => {
+				if (shownTip && !shownTip.plot.contains(ev.target)) {
+					shownTip.hide();
+					shownTip = null;
+				}
+			}, true);
+		}
 
 		return E('div', { 'class': 'tmhi-chart' }, [
 			E('div', { 'class': 'tmhi-chart-title' }, [ opts.label, ' ', E('small', {}, [ '(%s)'.format(opts.unit) ]) ]),
@@ -1088,7 +1236,11 @@ return baseclass.extend({
 			rows.push(E('div', { 'class': 'tmhi-heat-row' }, cells));
 		});
 
-		return E('div', { 'class': 'tmhi-heat' }, rows);
+		const heat = E('div', { 'class': 'tmhi-heat' }, rows);
+
+		this.tapDetails(heat);
+
+		return heat;
 	},
 
 	legend(items) {
