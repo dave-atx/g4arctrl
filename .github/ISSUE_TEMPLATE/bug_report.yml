@@ -35,7 +35,7 @@ body:
     attributes:
       label: tmhi version
       description: Output of `tmhi version`
-      placeholder: tmhi 0.4.1
+      placeholder: tmhi 0.5.0
     validations:
       required: true
 
