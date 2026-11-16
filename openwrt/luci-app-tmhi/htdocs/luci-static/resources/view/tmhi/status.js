@@ -3,7 +3,9 @@
 'require dom';
 'require poll';
 'require ui';
-'require tmhi';
+'require tmhi.common as tmhi';
+
+/* global tmhi */
 
 const RANGES = [
 	[ 86400, _('24 hours') ],
@@ -77,7 +79,7 @@ function cell(content, className, title) {
 
 // Redraw without moving what the reader is looking at: a new hour row, or a
 // line that wraps differently, above the reader would otherwise push the page
-// around (see placeMark() in tmhi.js).
+// around (see placeMark() in tmhi/common.js).
 function keepPlace(redraw) {
 	const mark = tmhi.placeMark();
 

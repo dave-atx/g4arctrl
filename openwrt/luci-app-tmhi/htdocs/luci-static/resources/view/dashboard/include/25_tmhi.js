@@ -1,7 +1,9 @@
 'use strict';
 'require baseclass';
-'require tmhi';
+'require tmhi.common as tmhi';
 'require view.dashboard.lib.charts as charts';
+
+/* global tmhi, charts */
 
 // Widgets for luci-mod-dashboard: a status card and a SINR chart, drawn with
 // the dashboard's own chart helpers so they look like the rest of it. Those

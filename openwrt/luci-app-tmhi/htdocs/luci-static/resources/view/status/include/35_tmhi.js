@@ -1,6 +1,8 @@
 'use strict';
 'require baseclass';
-'require tmhi';
+'require tmhi.common as tmhi';
+
+/* global tmhi */
 
 // A card on Status > Overview. It reads the sample the tmhi service keeps,
 // so the page's polling never reaches the gateway.

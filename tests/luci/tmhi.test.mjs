@@ -1,7 +1,7 @@
 // Unit tests for the LuCI module's pure functions (health wording, units,
 // towers, tooltip placement). Run with: node --test tests/luci/*.test.mjs
 //
-// tmhi.js is a LuCI module: a function body that returns
+// tmhi/common.js is a LuCI module: a function body that returns
 // baseclass.extend({...}). It is loaded here with just enough of LuCI around
 // it: _() returns the string as is, and String.prototype.format does the
 // subset of LuCI's sprintf the module uses.
@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const src = readFileSync(new URL('../../openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../../openwrt/luci-app-tmhi/htdocs/luci-static/resources/tmhi/common.js', import.meta.url), 'utf8');
 
 String.prototype.format = function(...args) {
 	let i = 0;

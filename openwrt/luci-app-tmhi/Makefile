@@ -8,7 +8,6 @@ include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI support for tmhi (T-Mobile Home Internet gateways)
 LUCI_DEPENDS:=+luci-base +tmhi
-LUCI_PKGARCH:=all
 
 PKG_VERSION:=0.4.1
 PKG_LICENSE:=Apache-2.0

@@ -27,8 +27,13 @@ const luci = {
 	processors: {
 		require: {
 			preprocess(text) {
+				// Not the ones the file declares itself (see AGENTS.md):
+				// declaring a name twice is an error.
+				const declared = [ ...text.matchAll(/\/\* global ([\w, ]+) \*\//g) ]
+					.flatMap(m => m[1].split(/[, ]+/));
 				const names = [ ...text.matchAll(/^'require ([\w.]+)(?: as (\w+))?';$/gm) ]
-					.map(m => m[2] || m[1].split('.').pop());
+					.map(m => m[2] || m[1].split('.').pop())
+					.filter(n => !declared.includes(n));
 
 				return [ names.length ? '/* global ' + names.join(', ') + ' */ ' + text : text ];
 			},
