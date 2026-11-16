@@ -42,7 +42,7 @@ define Package/tmhi/install
 	$(INSTALL_DIR) $(1)/usr/bin $(1)/etc/init.d $(1)/etc/config $(1)/etc/hotplug.d/tmhi $(1)/lib/upgrade/keep.d
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/tmhi $(1)/usr/bin/tmhi
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/tmhi.init $(1)/etc/init.d/tmhi
-	# INSTALL_CONF is mode 600: the file holds the gateway's admin password.
+	# Installed mode 600: the file holds the admin password.
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/tmhi.config $(1)/etc/config/tmhi
 	# Notification hooks: an example that does nothing until edited.
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/tmhi.hotplug $(1)/etc/hotplug.d/tmhi/50-example
