@@ -605,12 +605,14 @@ return baseclass.extend({
 	},
 
 	// { level, title, text } for a sample's health; level is
-	// ok | degraded | reboot | down.
+	// ok | degraded | reboot | down. Each part of text is a whole sentence,
+	// so translators can word (and punctuate) it as one.
 	health(s) {
 		const h = s.health || {};
 		const now = s.ts || Date.now() / 1000;
 		const since = h.since ? now - h.since : 0;
 		const prefs = (h.preferred || []).join('/');
+		const why = this.whyWords(s);
 		let text;
 
 		switch (h.level) {
@@ -618,10 +620,10 @@ return baseclass.extend({
 			return { level: 'ok', title: _('OK'), text: _('On %s.').format(h.key) };
 
 		case 'down':
-			return { level: 'down', title: _('Unreachable'), text: s.error || _('The gateway did not answer.') };
+			return { level: 'down', title: _('Unreachable'), text: this.errorWords(s) };
 
 		case 'reboot':
-			text = _('%s for %s (last good %s ago).').format(h.why, this.dur(since), this.dur(now - (h.lastgood || now)));
+			text = _('%s for %s (last good %s ago).').format(why, this.dur(since), this.dur(now - (h.lastgood || now)));
 
 			if (s.uptime != null && s.uptime < since)
 				text += ' ' + _('The gateway restarted %s ago and came back degraded; the %s cell may be down.').format(this.dur(s.uptime), prefs);
@@ -629,20 +631,62 @@ return baseclass.extend({
 			return { level: 'reboot', title: _('Reboot recommended'), text: text };
 
 		default:
-			text = h.why || _('Not on a preferred band.');
-
-			if (since >= 60)
-				text = _('%s for %s').format(text, this.dur(since));
+			text = (since >= 60) ? _('%s for %s.').format(why, this.dur(since)) : _('%s.').format(why);
 
 			if (!h.history)
-				text += '. ' + _('History logging is off, so a passing handover looks the same as a stuck gateway.');
+				text += ' ' + _('History logging is off, so a passing handover looks the same as a stuck gateway.');
 			else if (!h.seen && h.first && now - h.first >= 86400)
-				text += '. ' + _('No good samples in the past 7 days, so a reboot probably won\'t help.');
+				text += ' ' + _('No good samples in the past 7 days, so a reboot probably won\'t help.');
 			else
-				text += '. ' + _('Reboot if this lasts past %dm.').format(h.stuck_minutes || 30);
+				text += ' ' + _('Reboot if this lasts past %dm.').format(h.stuck_minutes || 30);
 
 			return { level: 'degraded', title: _('Degraded'), text: text };
 		}
+	},
+
+	// Why a sample isn't healthy, without a full stop: from the reason code
+	// the CLI sets (health.reason), or the English it wrote before it had one.
+	whyWords(s) {
+		const h = s.health || {};
+
+		switch (h.reason) {
+		case 'band':
+			return _('On %s, not %s').format(h.key, (h.preferred || []).join('/'));
+		case 'narrow':
+			return _('On %s, narrower than %d MHz').format(h.key, h.min_bw);
+		case 'unregistered':
+			return _('Not registered (%s)').format(this.regWords(s.reg));
+		case 'unreachable':
+			return _('Gateway unreachable');
+		}
+
+		return h.why || _('Not on a preferred band');
+	},
+
+	// Why the gateway didn't answer, as a sentence (error_kind from the CLI).
+	errorWords(s) {
+		switch (s.error_kind) {
+		case 'unreachable':
+			return _('The gateway did not answer.');
+		case 'unparseable':
+			return _('The gateway sent an answer tmhi could not read.');
+		case 'http':
+			return _('The gateway answered with HTTP error %d.').format(s.http_status);
+		}
+
+		return s.error || _('The gateway did not answer.');
+	},
+
+	// The registration state in words. The gateway reports others than these
+	// (shown as it reports them); unreachable comes from tmhi.
+	regWords(reg) {
+		switch (reg) {
+		case 'registered': return _('Registered');
+		case 'unreachable': return _('Unreachable');
+		case 'unknown': case null: case undefined: return _('Unknown');
+		}
+
+		return reg;
 	},
 
 	badge(health) {
@@ -691,8 +735,6 @@ return baseclass.extend({
 		return (t && t.name) ? t.name : '%s %s'.format(radio == 'lte' ? _('eNB') : _('gNB'), id);
 	},
 
-	// "1.3 mi NE (42°)" from the gateway's reported position to the tower, or
-	// null when either position is unknown.
 	// { d, unit, dir, deg }: distance and bearing (degrees from true north)
 	// from the gateway's reported position to the tower, or null when either
 	// position is unknown.
@@ -709,7 +751,12 @@ return baseclass.extend({
 		const y = Math.sin(dl) * Math.cos(r2);
 		const x = Math.cos(r1) * Math.sin(r2) - Math.sin(r1) * Math.cos(r2) * Math.cos(dl);
 		const deg = (Math.atan2(y, x) / rad + 360) % 360;
-		const dirs = [ _('N'), _('NE'), _('E'), _('SE'), _('S'), _('SW'), _('W'), _('NW') ];
+		// With a context: on their own these are ambiguous in LuCI's shared
+		// translation table ('S' and 'E' especially).
+		const dirs = [
+			_('N', 'compass direction'), _('NE', 'compass direction'), _('E', 'compass direction'), _('SE', 'compass direction'),
+			_('S', 'compass direction'), _('SW', 'compass direction'), _('W', 'compass direction'), _('NW', 'compass direction')
+		];
 
 		return {
 			d: 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * (metric ? 6371 : 3958.8),
@@ -723,7 +770,12 @@ return baseclass.extend({
 	distance(s, t, units) {
 		const b = this.bearing(s, t, units);
 
-		return b ? '%.1f %s %s (%d°)'.format(b.d, b.unit, b.dir, Math.round(b.deg) % 360) : null;
+		return b ? this.distanceWords(b) : null;
+	},
+
+	distanceWords(b) {
+		return _('%.1f %s %s (%d°)', 'distance to a tower: number, unit, compass direction, bearing in degrees')
+			.format(b.d, b.unit, b.dir, Math.round(b.deg) % 360);
 	},
 
 	// An arrow pointing at the tower, with north up, then the distance and
@@ -739,7 +791,7 @@ return baseclass.extend({
 				svg('circle', { 'r': 7.25, 'fill': 'none', 'stroke': 'currentColor', 'stroke-opacity': 0.35 }),
 				svg('path', { 'd': 'M0,-6 L4,4 L0,2 L-4,4 Z', 'fill': 'currentColor', 'transform': 'rotate(%.1f)'.format(b.deg) })
 			]),
-			' %.1f %s %s (%d°)'.format(b.d, b.unit, b.dir, Math.round(b.deg) % 360)
+			' ', this.distanceWords(b)
 		]);
 	},
 

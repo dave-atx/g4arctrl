@@ -49,6 +49,66 @@ test_status_unreachable() {
 	has "unreachable" "$RUN/latest.json"
 }
 
+# LuCI words the health and fetch errors itself (to translate them), from
+# codes in the JSON next to the English text the CLI prints.
+reasons() {
+	json '[.health.level, .health.reason, .error_kind, .http_status] | map(tostring) | join(" ")'
+}
+
+test_status_json_reason_ok() {
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "ok null null null" reasons
+}
+
+test_status_json_reason_band() {
+	gateway n25
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "degraded band null null" reasons
+	eq "$(json .health.why)" "on n25 20 MHz, not n41" why
+}
+
+test_status_json_reason_narrow() {
+	cfg min_bw 200
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "degraded narrow null null" reasons
+	eq "$(json .health.min_bw)" 200 min_bw
+}
+
+test_status_json_reason_unregistered() {
+	jq '.signal.generic.registration = "searching"' "$T/gw/all.json" >"$T/gw/all.new"
+	mv "$T/gw/all.new" "$T/gw/all.json"
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "degraded unregistered null null" reasons
+	eq "$(json .reg)" searching reg
+}
+
+test_status_json_error_unreachable() {
+	gateway down
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "down unreachable unreachable null" reasons
+}
+
+test_status_json_error_http() {
+	echo 503 >"$T/gw/all-code"
+	clock 10
+	tmhi status --json
+	eq "$RC" 1 "exit status"
+	eq "$(reasons)" "down unreachable http 503" reasons
+	eq "$(json .error)" "HTTP 503 from gateway" error
+}
+
+test_status_json_error_unparseable() {
+	echo 'not json' >"$T/gw/all.json"
+	clock 10
+	tmhi status --json
+	eq "$(reasons)" "down unreachable unparseable null" reasons
+}
+
 test_health_ok() {
 	clock 10
 	tmhi health

@@ -2,6 +2,7 @@
 # Fake gateway. Serves $T/gw/all.json and $T/gw/cell.json, takes logins and
 # reboots, and logs each request to $T/requests ("METHOD path [auth]").
 # $T/gw/down: no answer. $T/gw/down-until: no answer before that time.
+# $T/gw/all-code: the status request answers that HTTP code (default 200).
 # $T/gw/cell-fail: the telemetry answers 500. $T/gw/login-fail: logins are
 # refused. $T/gw/token-expired: the next telemetry request answers 401.
 out='' fmt='' method=GET url='' auth=''
@@ -57,7 +58,7 @@ if [ -f "$T/gw/down" ] || { [ -f "$T/gw/down-until" ] && [ "$(cat "$T/now")" -lt
 	exit 7
 fi
 case "$method $path" in
-"GET gateway/?get=all") answer 200 "$T/gw/all.json" ;;
+"GET gateway/?get=all") answer "$(cat "$T/gw/all-code" 2>/dev/null || echo 200)" "$T/gw/all.json" ;;
 "GET network/telemetry/?get=cell")
 	if [ -z "$auth" ]; then
 		answer 401

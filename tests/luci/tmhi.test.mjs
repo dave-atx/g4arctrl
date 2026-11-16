@@ -162,6 +162,75 @@ test('health: reboot, and a gateway that restarted into the bad band', () => {
 	assert.equal(h.text, 'on n25 20 MHz, not n41 for 2h 0m (last good 2h 1m ago). The gateway restarted 30m ago and came back degraded; the n41 cell may be down.');
 });
 
+test('health: words the reason code from the CLI', () => {
+	const degraded = (health, extra) => tmhi.health(sample(Object.assign({ level: 'degraded', since: now - 600, seen: true, first: now - 86400 * 3, why: 'english from the CLI' }, health), extra)).text;
+
+	assert.equal(degraded({ reason: 'band', key: 'n25 20 MHz' }), 'On n25 20 MHz, not n41 for 10m. Reboot if this lasts past 30m.');
+	assert.equal(degraded({ reason: 'band', key: 'n25 20 MHz', preferred: [ 'n41', 'n77' ] }), 'On n25 20 MHz, not n41/n77 for 10m. Reboot if this lasts past 30m.');
+	assert.equal(degraded({ reason: 'narrow', key: 'n41 20 MHz', min_bw: 40 }), 'On n41 20 MHz, narrower than 40 MHz for 10m. Reboot if this lasts past 30m.');
+	assert.equal(degraded({ reason: 'unregistered', key: '(searching)', since: now - 30 }, { reg: 'searching' }), 'Not registered (searching). Reboot if this lasts past 30m.');
+	assert.equal(degraded({ reason: 'unreachable' }), 'Gateway unreachable for 10m. Reboot if this lasts past 30m.');
+	// A CLI from before the reason codes.
+	assert.equal(degraded({}), 'english from the CLI for 10m. Reboot if this lasts past 30m.');
+	assert.equal(degraded({ why: null }), 'Not on a preferred band for 10m. Reboot if this lasts past 30m.');
+});
+
+test('health: words why the gateway did not answer', () => {
+	const down = extra => tmhi.health(sample({ level: 'down' }, Object.assign({ error: 'english from the CLI' }, extra))).text;
+
+	assert.equal(down({ error_kind: 'unreachable' }), 'The gateway did not answer.');
+	assert.equal(down({ error_kind: 'unparseable' }), 'The gateway sent an answer tmhi could not read.');
+	assert.equal(down({ error_kind: 'http', http_status: 503 }), 'The gateway answered with HTTP error 503.');
+	assert.equal(down({}), 'english from the CLI');
+});
+
+test('regWords', () => {
+	assert.equal(tmhi.regWords('registered'), 'Registered');
+	assert.equal(tmhi.regWords('unreachable'), 'Unreachable');
+	assert.equal(tmhi.regWords(undefined), 'Unknown');
+	assert.equal(tmhi.regWords('searching'), 'searching');
+});
+
+// The module again, with a _() that brackets what it translates and keeps
+// the contexts it was given: anything outside the brackets is text a
+// translator can't reach.
+const seen = [];
+const marked = new Function('baseclass', 'fs', 'uci', 'ui', 'L', 'E', '_', src)(
+	baseclass, {}, {}, {}, {}, () => null, (s, ctx) => { seen.push([ s, ctx ]); return '«' + s + '»'; });
+
+test('health text is whole translated sentences', () => {
+	const texts = [
+		marked.health(sample({ level: 'degraded', reason: 'band', key: 'n25 20 MHz', since: now - 600, seen: true, first: now - 86400 * 3 })).text,
+		marked.health(sample({ level: 'degraded', reason: 'narrow', key: 'n41 20 MHz', min_bw: 40, history: false })).text,
+		marked.health(sample({ level: 'reboot', reason: 'band', key: 'n25 20 MHz', since: now - 7200, lastgood: now - 7300 }, { uptime: 1800 })).text,
+		marked.health(sample({ level: 'down' }, { error_kind: 'http', http_status: 503 })).text
+	];
+
+	// Sentences may only be joined by a space; nested words (the reason,
+	// durations) sit inside their own brackets.
+	for (const t of texts) {
+		let depth = 0, outside = '';
+
+		for (const c of t) {
+			if (c == '«') depth++;
+			else if (c == '»') depth--;
+			else if (depth == 0) outside += c;
+		}
+
+		assert.match(outside, /^ *$/, t);
+	}
+});
+
+test('compass points and the distance format carry a context', () => {
+	seen.length = 0;
+	marked.distance({ gps_lat: 47.6101, gps_lon: -122.2015 }, { lat: '47.6201', lon: '-122.1865' }, 'imperial');
+
+	for (const d of [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ])
+		assert.deepEqual(seen.find(x => x[0] == d), [ d, 'compass direction' ]);
+
+	assert.ok(seen.find(x => x[0] == '%.1f %s %s (%d°)')[1]);
+});
+
 // ---- Towers -------------------------------------------------------------------
 
 const towers = { list: [ { radio: 'nr', id: '1234567', name: 'Water tower', lat: '47.6201', lon: '-122.1865' }, { id: '7654321' } ] };

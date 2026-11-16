@@ -244,7 +244,7 @@ return view.extend({
 		const conn = E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, [ _('Connection') ]),
 			E('div', { 'class': 'tmhi-kv' }, [
-				row(_('Registration'), s.reg, HINTS.reg),
+				row(_('Registration'), tmhi.regWords(s.reg), HINTS.reg),
 				row(_('Mode'), tmhi.mode(s), HINTS.mode),
 				row(_('APN'), s.apn, HINTS.apn),
 				row(_('IPv6'), s.ipv6 == null ? null : (s.ipv6 ? _('yes') : _('no')), HINTS.ipv6),
