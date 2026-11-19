@@ -14,7 +14,7 @@ umask 077
 
 VERSION=0.5.0
 
-# Settings live in UCI: /etc/config/tmhi, section "main" (see tmhi.config).
+# Settings live in UCI: /etc/config/tmhi, section "main" (see openwrt/tmhi/files/tmhi.config).
 # Without uci (not OpenWrt), everything takes its default.
 HAVE_UCI=0
 if command -v uci >/dev/null 2>&1; then HAVE_UCI=1; fi

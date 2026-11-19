@@ -30,8 +30,8 @@ jobs:
       - name: shellcheck and shfmt
         run: |
           sudo apt-get install -y --no-install-recommends shfmt
-          shellcheck -s sh tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
-          shfmt -ln posix -d tmhi tmhi.init tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+          shellcheck -s sh tmhi openwrt/tmhi/files/tmhi.init openwrt/tmhi/files/tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
+          shfmt -ln posix -d tmhi openwrt/tmhi/files/tmhi.init openwrt/tmhi/files/tmhi.hotplug openwrt/tmog4ar/files/tmog4ar-to-tmhi openwrt/sdk-build.sh openwrt/source-tarball.sh openwrt/tmhi/test.sh openwrt/image/*.sh openwrt/image/image-upgrade tests/*.sh tests/fake/*
 
       - name: eslint (LuCI views)
         run: npx --yes eslint -c openwrt/luci-app-tmhi/eslint.config.mjs openwrt/luci-app-tmhi
@@ -97,7 +97,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: repo
-          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'tmhi.init', 'tmhi.config', 'tmhi.hotplug', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**', 'openwrt/tmog4ar/**', 'openwrt/sdk-build.sh', 'openwrt/source-tarball.sh', 'LICENSE') }}
+          key: repo-${{ env.OPENWRT_VERSION }}-${{ hashFiles('tmhi', 'openwrt/tmog4ar.pem', 'openwrt/tmhi/**', 'openwrt/luci-app-tmhi/**', 'openwrt/tmog4ar/**', 'openwrt/sdk-build.sh', 'openwrt/source-tarball.sh', 'LICENSE') }}
 
       # Both packages are noarch, so any SDK will do. The LuCI app is built
       # with luci.mk, so the default feeds (which include luci) stay on.

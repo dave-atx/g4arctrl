@@ -5,7 +5,7 @@
 #
 #   openwrt/source-tarball.sh OUT_DIR
 #
-# Only the files the package installs (and LICENSE) go in, with fixed owners,
+# Only the script the package installs (and LICENSE) go in, with fixed owners,
 # modes and times, so the same files give the same archive on any machine with
 # GNU tar and xz. A change to one of them means a new PKG_HASH at release.
 
@@ -24,9 +24,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir "$stage/$name"
 install -m 755 "$top/tmhi" "$stage/$name/tmhi"
-for f in tmhi.init tmhi.config tmhi.hotplug LICENSE; do
-	install -m 644 "$top/$f" "$stage/$name/$f"
-done
+install -m 644 "$top/LICENSE" "$stage/$name/LICENSE"
 chmod 755 "$stage/$name"
 
 # 2026-01-01 00:00 UTC: any fixed time does.

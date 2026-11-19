@@ -213,8 +213,8 @@ The CLI is a single POSIX shell script (busybox ash, also dash / bash) that need
 
 ```sh
 apk add curl jq
-cp tmhi /usr/bin/ && cp tmhi.init /etc/init.d/tmhi
-cp tmhi.config /etc/config/tmhi && chmod 600 /etc/config/tmhi
+cp tmhi /usr/bin/ && cp openwrt/tmhi/files/tmhi.init /etc/init.d/tmhi
+cp openwrt/tmhi/files/tmhi.config /etc/config/tmhi && chmod 600 /etc/config/tmhi
 /etc/init.d/tmhi enable && /etc/init.d/tmhi start
 ```
 
@@ -229,7 +229,7 @@ sh /path/to/g4arctrl/openwrt/source-tarball.sh dl
 make defconfig && make package/tmhi/compile package/luci-app-tmhi/compile PKG_HASH=skip
 ```
 
-The tmhi package is built from a source archive (`tmhi-<version>.tar.xz`) that each release uploads, the way packages in openwrt/packages are; `source-tarball.sh` makes the same archive from your checkout. `PKG_HASH=skip` is only needed if you've changed `tmhi`, `tmhi.init`, `tmhi.config`, `tmhi.hotplug` or `LICENSE` since the hash in the Makefile was set.
+The tmhi package is built from a source archive (`tmhi-<version>.tar.xz`) that each release uploads, the way packages in openwrt/packages are; `source-tarball.sh` makes the same archive from your checkout. `PKG_HASH=skip` is only needed if you've changed `tmhi` or `LICENSE` since the hash in the Makefile was set.
 
 CI ([.github/workflows/build.yml](.github/workflows/build.yml)) builds the packages and the Pi 5 images on every push, and checks that the packages also build and install on OpenWrt main. To release, bump `VERSION` in `tmhi` and `PKG_VERSION` in `openwrt/tmhi/Makefile`, `openwrt/luci-app-tmhi/Makefile` and `openwrt/tmog4ar/Makefile`, set `PKG_HASH` in `openwrt/tmhi/Makefile` to the hash `sh openwrt/source-tarball.sh /tmp` prints, then push a `vX.Y.Z` tag. That creates the GitHub release (with the source archive) and updates the repository on GitHub Pages, signed with the key in the `APK_PRIVATE_KEY` secret.
 
