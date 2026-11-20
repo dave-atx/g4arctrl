@@ -463,6 +463,11 @@ return view.extend({
 					e.result == 'failed' ? E('span', { 'class': 'tmhi-poor-text' }, [ ' ', _('(failed)') ]) : '',
 					e.from ? E('span', { 'class': 'tmhi-muted' }, [ ' · ', _('was on %s').format(e.from) ]) : ''
 				]);
+			else if (e.type == 'update')
+				what = E('span', {}, [
+					E('b', {}, [ _('Gateway software update') ]),
+					E('span', { 'class': 'tmhi-muted' }, [ ' · ', _('%s to %s', 'software versions').format(e.from, e.to) ])
+				]);
 			else if (e.type == 'tower')
 				what = E('span', {}, [ band(e.to, e.to_good), E('span', { 'class': 'tmhi-muted' }, [ ' · ', moved(e) ]) ]);
 			else

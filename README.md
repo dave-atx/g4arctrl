@@ -13,9 +13,9 @@ My gateway occasionally gets "stuck" on n25 with a 20 MHz channel instead of n41
 ## What you get
 
 - **Status → Cellular** in LuCI: the band, channel width and signal (RSRP, RSRQ, SINR, etc), each with a one-line explanation of what it means and what counts as good. Plus a health verdict, a refresh button and a reboot button that asks first.
-- **History** for the last 24 hours, 7 days or 30 days: which band you were on over time, SINR and RSRP charts, a good-samples-by-hour heatmap, time on each band and tower, and every band / tower change.
+- **History** for the last 24 hours, 7 days or 30 days: which band you were on over time, SINR and RSRP charts, a good-samples-by-hour heatmap, time on each band and tower, and every band / tower change, gateway reboot and gateway software update.
 - **Optional automatic reboot at night.** When a reboot is recommended, tmhi can reboot the gateway itself between 02:00 and 05:00, once nobody's been using the internet for 15 minutes, at most once a night. Off by default; see [Automatic reboot at night](#automatic-reboot-at-night).
-- **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmhi/` (an ntfy example is included). See [Notifications](#notifications).
+- **Notifications** when a reboot becomes recommended, when the connection recovers and around automatic reboots and when the gateway's software is updated, through syslog, ubus and your own scripts in `/etc/hotplug.d/tmhi/` (an ntfy example is included). See [Notifications](#notifications).
 - **Tower names, distance and direction.** Name the towers you connect to (it links to [CellMapper](https://www.cellmapper.net) to find them) and the page shows "Water tower · 4.0 mi S" with an arrow pointing at it, which helps when you're deciding which window to put the gateway in.
 - A **card on Status → Overview** and two **dashboard widgets** (if you use luci-mod-dashboard; it needs a version from September 2026 or later, so run `apk upgrade luci-mod-dashboard` if the dashboard stops loading after installing tmhi).
 - A **command line tool**, `tmhi`, with the same status and history in a terminal.
@@ -112,7 +112,7 @@ The router can't see who's home, so "quiet" means the traffic on its WAN device 
 
 ### Notifications
 
-tmhi sends nothing off the router itself. When a reboot becomes recommended, when the connection recovers after that, and before and after an automatic reboot, it:
+tmhi sends nothing off the router itself. When a reboot becomes recommended, when the connection recovers after that, before and after an automatic reboot, and when the gateway comes back with new software, it:
 
 - writes a line to the system log (`logread -e tmhi`; forward it with the router's remote syslog setting),
 - sends a ubus event (`ubus listen tmhi`),

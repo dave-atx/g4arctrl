@@ -132,3 +132,47 @@ test_stop_flushes() {
 	eq "$RC" 0 "exit status"
 	eq "$(samples)" 2 samples
 }
+
+# A software update restarts the gateway: the history showed only an
+# unreachable stretch. The new version is recorded as an update at the time
+# the gateway came up (from its uptime), once, and the first version seen
+# is only remembered. It is a notification too.
+test_software_update_recorded() {
+	clock 10
+	cat >"$T/on-sleep" <<-'E'
+		at 12 && : >"$T/gw/down"
+		at 14 && rm -f "${T:?}/gw/down" && jq '.device.softwareVersion = "1.00.20" | .time.upTime = 90' \
+			"$T/gw/all.json" >"$T/gw/new.json" && mv "$T/gw/new.json" "$T/gw/all.json"
+	E
+	daemon 7
+	eq "$(cat "$T/hist/firmware")" 1.00.20 "version remembered"
+	eq "$(cat "$T/hist/events.tsv")" "$((BASE + 14 * 60 - 90))	update	1.00.18	1.00.20" events
+	has "notice The gateway software was updated from 1.00.18 to 1.00.20" "$T/syslog"
+	eq "$(jq -rs '[.[].action] | join(",")' "$T/ubus")" software-update "ubus events"
+	eq "$(cat "$T/hotplug")" "tmhi ACTION=software-update LEVEL=ok BAND=n41 100 MHz" hotplug
+	# The gateway not answering around it is part of the update.
+	eq "$(changes 1h)" "12 update 1.00.18 -> 1.00.20" changes
+	tmhi history -s 1h
+	has "gateway software update  (1.00.18 → 1.00.20)"
+	# A restart doesn't record it again.
+	rm -f "${T:?}/on-sleep"
+	daemon 2
+	eq "$(lines "$T/hist/events.tsv")" 1 "events after a restart"
+}
+
+test_first_software_version_only_remembered() {
+	clock 10
+	tmhi log
+	eq "$(cat "$T/hist/firmware")" 1.00.18 "version remembered"
+	[ ! -f "$T/hist/events.tsv" ] || fail "events: $(cat "$T/hist/events.tsv")"
+}
+
+# An update is not a reboot tmhi sent: the gateway not answering right after
+# one is still news.
+test_unreachable_after_update_recorded() {
+	gateway down
+	printf '%s\tupdate\t1.00.18\t1.00.20\n' $((BASE + 8 * 60)) >"$T/hist/events.tsv"
+	clock 10
+	tmhi log
+	eq "$(samples)" 1 samples
+}

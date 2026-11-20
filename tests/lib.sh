@@ -166,6 +166,7 @@ daemon() {
 #   12 tower 1234567 -> 7654321
 #   12 gap 30m
 #   12 reboot auto ok (n25 20 MHz)
+#   12 update 1.00.18 -> 1.00.20
 changes() {
 	tmhi history --json -s "${1:-1d}"
 	[ "$RC" = 0 ] || fail "history --json failed ($RC)"
@@ -173,6 +174,7 @@ changes() {
 		if .type == "band" then " \(.from) -> \(.to)" + (if .nb_from then " tower \(.nb_from) -> \(.nb_to)" else "" end)
 		elif .type == "tower" then " \(.nb_from) -> \(.nb_to)"
 		elif .type == "gap" then " \(.dur / 60 | floor)m"
+		elif .type == "update" then " \(.from) -> \(.to)"
 		else " \(.source) \(.result) (\(.from))" end)' "$T/out"
 }
 

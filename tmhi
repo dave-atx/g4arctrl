@@ -72,9 +72,14 @@ LOGIN_BACKOFF=900 # after a failed login, don't try again for this long (avoid l
 GAP=900           # a gap this long between history samples breaks a "degraded since" streak
 LOOKBACK=604800   # a good sample this recent proves the preferred band is reachable here
 AR_SPACING=72000  # at most one automatic reboot in this long (once a night)
-# Gateway reboots, one per line: ts, "reboot", auto|manual, ok|noanswer|failed,
-# the band before. On flash with the history; history output shows them.
+# Gateway events, one per line, on flash with the history; history output
+# shows them. Reboots sent to it: ts, "reboot", auto|manual,
+# ok|noanswer|failed, the band before. Software updates: ts (when it started
+# up on the new version), "update", the old version, the new one.
 EVENTS="$HISTORY_DIR/events.tsv"
+# The gateway software version last seen, to notice an update. Rewritten
+# only when it changes.
+FIRMWARE="$HISTORY_DIR/firmware"
 
 COLS='ts reg nr_bands nr_bw nr_rsrp nr_rsrq nr_sinr nr_rssi nr_bars nr_cqi nr_pci nr_arfcn nr_nb nr_cid lte_bands lte_bw lte_rsrp lte_rsrq lte_sinr lte_rssi lte_bars lte_cqi lte_pci lte_arfcn lte_nb lte_cid uptime'
 HEADER=$(printf '%s' "$COLS" | tr ' ' '\t')
@@ -330,15 +335,17 @@ BEGIN {
 		split(tl, TW, "\t")
 		TN[TW[1] ":" TW[2]] = TW[3]; TLAT[TW[1] ":" TW[2]] = TW[4]; TLON[TW[1] ":" TW[2]] = TW[5]
 	}
-	# Gateway reboots (events.tsv), oldest first; the history readers merge them
-	# into their changes with rbnext().
-	nrb = 0; rbi = 1
+	# Gateway reboots and updates (events.tsv), oldest first; the history
+	# readers merge them into their changes with rbnext(). RBY is the type;
+	# for an update RBS and RBR are the old and new versions. UPT: the update
+	# times again, for inupdate().
+	nrb = 0; rbi = 1; nup = 0
 	if (eventfile != "") while ((getline el < eventfile) > 0) {
 		split(el, EL, "\t")
-		if (EL[2] == "reboot" && EL[1] ~ /^[0-9]+$/) { nrb++; RBT[nrb] = EL[1] + 0; RBS[nrb] = EL[3]; RBR[nrb] = EL[4]; RBK[nrb] = EL[5] }
+		if ((EL[2] == "reboot" || EL[2] == "update") && EL[1] ~ /^[0-9]+$/) { nrb++; RBT[nrb] = EL[1] + 0; RBY[nrb] = EL[2]; RBS[nrb] = EL[3]; RBR[nrb] = EL[4]; RBK[nrb] = EL[5]; if (EL[2] == "update") UPT[++nup] = RBT[nrb] }
 	}
 }
-# The next reboot at or before t not yet shown, skipping those before since:
+# The next event at or before t not yet shown, skipping those before since:
 # returns its index, or 0.
 function rbnext(t) {
 	while (rbi <= nrb && RBT[rbi] < since) rbi++
@@ -347,6 +354,13 @@ function rbnext(t) {
 }
 $1 == "ts" { delete C; for (i = 1; i <= NF; i++) C[$i] = i; next }
 $1 !~ /^[0-9]+$/ { next }
+# The gateway not answering within 5 minutes of a software update is the
+# update restarting it: one event, the update, not an outage and back.
+nup && f("reg") == "unreachable" && inupdate($1 + 0) { next }
+function inupdate(t,   i) {
+	for (i = 1; i <= nup; i++) if (t - UPT[i] <= 300 && UPT[i] - t <= 300) return 1
+	return 0
+}
 function f(k) { return (k in C) ? $(C[k]) : "-" }
 # The serving tower of this sample: its radio (nr|lte) in TRAD, its id returned.
 # The gateway sometimes reports the tower id with one bit missing for a few
@@ -944,9 +958,35 @@ unreachable_expected() {
 	local last
 	if [ "$ANSWERED" = 0 ] && [ -n "$DAEMON_START" ] && [ $((TS - DAEMON_START)) -lt 300 ]; then return 0; fi
 	[ -f "$EVENTS" ] || return 1
-	last=$(tail -n 1 "$EVENTS" | cut -f1)
+	last=$(grep "	reboot	" "$EVENTS" | tail -n 1 | cut -f1)
 	case "$last" in '' | *[!0-9]*) return 1 ;; esac
 	[ $((TS - last)) -lt 300 ]
+}
+
+# firmware_check: when the gateway answers with another software version than
+# last time, record the update in $EVENTS, and leave the message in
+# FW_UPDATE for the daemon to notify once health is known. An update
+# restarts the gateway, so the event goes at the time it started up (from
+# its uptime): in the history that is where it stopped answering. The first
+# version seen is only remembered.
+FW_SEEN='' FW_UPDATE=''
+firmware_check() {
+	local new old at last
+	new=$(printf '%s' "${S_firmware:-}" | tr '\t\n' '  ')
+	if [ -z "$new" ] || [ "$new" = "$FW_SEEN" ]; then return 0; fi
+	read -r old 2>/dev/null <"$FIRMWARE" || old=''
+	FW_SEEN=$new
+	if [ "$new" = "$old" ]; then return 0; fi
+	mkdir -p "$HISTORY_DIR"
+	printf '%s\n' "$new" >"$FIRMWARE"
+	if [ -z "$old" ]; then return 0; fi
+	at=$TS
+	case "${S_uptime:-}" in '' | *[!0-9]*) ;; *) at=$((TS - S_uptime)) ;; esac
+	# Keep events.tsv in time order (a reboot sent just before it came up).
+	last=$(tail -n 1 "$EVENTS" 2>/dev/null | cut -f1) || last=''
+	case "$last" in '' | *[!0-9]*) ;; *) if [ "$at" -lt "$last" ]; then at=$last; fi ;; esac
+	printf '%s\tupdate\t%s\t%s\n' "$at" "$old" "$new" >>"$EVENTS"
+	FW_UPDATE="The gateway software was updated from $old to $new"
 }
 
 # log_sample: take one sample and add it to the RAM buffer, flushing when due
@@ -957,6 +997,7 @@ log_sample() {
 	EXPECTED_DOWN=0
 	if [ -z "$FETCH_ERR" ]; then
 		ANSWERED=1
+		firmware_check
 	elif unreachable_expected; then
 		EXPECTED_DOWN=1
 		return 0
@@ -976,6 +1017,8 @@ cmd_log() {
 	if [ $# -gt 0 ]; then die "log takes no options"; fi
 	init
 	log_sample
+	# No health here to send a notification with; syslog only.
+	if [ -n "$FW_UPDATE" ]; then syslog notice "$FW_UPDATE"; fi
 	if [ -t 1 ]; then printf 'logged (%s buffered in RAM)\n' "$(wc -l <"$BUFFER")"; fi
 }
 
@@ -983,7 +1026,8 @@ cmd_log() {
 # Notifications. tmhi sends nothing off the router itself: it logs to syslog,
 # sends a ubus event (ubus listen tmhi) and runs the scripts in
 # /etc/hotplug.d/tmhi/ with these variables:
-#   ACTION    reboot-recommended | recovered | auto-reboot | auto-reboot-done | test
+#   ACTION    reboot-recommended | recovered | auto-reboot | auto-reboot-done |
+#             software-update | test
 #   MESSAGE   one line for a person to read
 #   LEVEL     health now: ok | degraded | reboot | down
 #   BAND      what the gateway is on, e.g. "n25 20 MHz"
@@ -1261,6 +1305,10 @@ cmd_daemon() {
 		health_eval
 		save_latest || err "could not write $LATEST"
 		notify_check
+		if [ -n "$FW_UPDATE" ]; then
+			notify software-update "$FW_UPDATE"
+			FW_UPDATE=''
+		fi
 		wan_sample
 		auto_reboot_check
 		# Sleep in the background so a TERM is handled right away.
@@ -1330,6 +1378,7 @@ $1 + 0 < since { next }
 }
 function ev(t, s) { E[++ne] = DIM fmt(t) RST "  " s }
 function rbev(r) {
+	if (RBY[r] == "update") { ev(RBT[r], YEL "gateway software update" RST DIM "  (" RBS[r] " → " RBR[r] ")" RST); return }
 	ev(RBT[r], YEL "gateway reboot" RST DIM "  (" ((RBS[r] == "auto") ? "automatic" : "manual") ((RBR[r] == "failed") ? ", failed" : "") ((RBK[r] != "") ? ", was on " RBK[r] : "") ")" RST)
 }
 function paint(k, g) { return (g ? GRN : RED) k RST }
@@ -1380,10 +1429,12 @@ END {
 #   hours     per hour: t, n, good, rsrp/sinr [avg, min, max], keys {key: samples}
 #   series    per bucket: [t, n, good, rsrp [avg, min, max], sinr [avg, min, max]]
 #   segments  runs on one band: [start, end, key, good]; a gap ends a run
-#   events    band and tower changes, gaps and gateway reboots, oldest first
-#             (the last maxev); a change of tower has nb_from / nb_to and
-#             radio_from / radio_to; a reboot (type "reboot") has source
-#             (auto|manual), result (ok|noanswer|failed) and from (the band)
+#   events    band and tower changes, gaps, gateway reboots and software
+#             updates, oldest first (the last maxev); a change of tower has
+#             nb_from / nb_to and radio_from / radio_to; a reboot (type
+#             "reboot") has source (auto|manual), result (ok|noanswer|failed)
+#             and from (the band); an update (type "update") has from and to
+#             (the old and new software versions)
 # shellcheck disable=SC2016 # awk program, not shell
 AWK_HISTORY_JSON='
 $1 + 0 < since { next }
@@ -1448,6 +1499,7 @@ function ev(t, type, a, b, ga, gb, na, nbb, d,   s) {
 	E[++ne] = s "}"
 }
 function rbev(r) {
+	if (RBY[r] == "update") { E[++ne] = "{\"t\":" RBT[r] ",\"type\":\"update\",\"from\":" js(RBS[r]) ",\"to\":" js(RBR[r]) "}"; return }
 	E[++ne] = "{\"t\":" RBT[r] ",\"type\":\"reboot\",\"source\":" js(RBS[r]) ",\"result\":" js(RBR[r]) ",\"from\":" js(RBK[r]) "}"
 }
 END {

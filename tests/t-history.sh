@@ -230,3 +230,37 @@ test_no_history() {
 	eq "$RC" 0 "json exit status"
 	eq "$(json .samples)" 0 samples
 }
+
+test_update_events_merged() {
+	history <<-E
+		0 $N41 x10
+	E
+	events <<-E
+		3 manual ok n41 100 MHz
+	E
+	printf '%s\tupdate\t1.00.18\t1.00.20\n' $((BASE + 5 * 60)) >>"$T/hist/events.tsv"
+	clock 20
+	eq "$(changes 1h)" "3 reboot manual ok (n41 100 MHz)
+5 update 1.00.18 -> 1.00.20" changes
+	tmhi history -s 1h
+	has "gateway software update  (1.00.18 → 1.00.20)"
+}
+
+# The gateway not answering around an update is the update restarting it:
+# one change, not an outage and back. An outage further away still shows.
+test_unreachable_around_update_is_the_update() {
+	history <<-E
+		0 $N41 x10
+		10 unreachable x2
+		12 $N41 x10
+		22 unreachable x2
+		24 $N41 x5
+	E
+	printf '%s\tupdate\t1.00.18\t1.00.20\n' $((BASE + 10 * 60 + 30)) >"$T/hist/events.tsv"
+	clock 30
+	eq "$(changes 1h)" "10 update 1.00.18 -> 1.00.20
+22 band n41 100 MHz -> (unreachable)
+24 band (unreachable) -> n41 100 MHz" changes
+	tmhi history -s 1h
+	eq "$(grep -c 'n41 100 MHz → (unreachable)' "$T/out")" 1 "outages in the text changes"
+}
