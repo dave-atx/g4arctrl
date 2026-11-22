@@ -264,3 +264,31 @@ test_unreachable_around_update_is_the_update() {
 	tmhi history -s 1h
 	eq "$(grep -c 'n41 100 MHz → (unreachable)' "$T/out")" 1 "outages in the text changes"
 }
+
+# The one-bit glitch on the first sample of the window: with nothing before
+# it to compare, it counted as the tower, and the next sample as a move to
+# the real one. Samples before the window now set the tower and width the
+# window starts from.
+test_tower_glitch_at_start_of_window_is_not_a_move() {
+	history <<-E
+		0 $N41 x10
+		10 registered n41 100 -94 23 185991 101 123 501390
+		11 $N41 x59
+	E
+	clock 70
+	eq "$(changes 1h)" "" changes
+	eq "$(json '[.towers[].id] | join(",")')" 1234567 towers
+	tmhi history -s 1h
+	hasnt "185991"
+}
+
+test_width_missing_at_start_of_window_is_no_change() {
+	history <<-E
+		0 $N41 x10
+		10 $N41_NOWIDTH
+		11 $N41 x59
+	E
+	clock 70
+	eq "$(changes 1h)" "" changes
+	eq "$(json '[.bands[].key] | join(",")')" "n41 100 MHz" bands
+}

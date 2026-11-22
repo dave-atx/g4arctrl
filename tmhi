@@ -1338,7 +1338,9 @@ dur_secs() { # 90m | 24h | 7d | 3600 -> seconds
 
 # shellcheck disable=SC2016 # awk program, not shell
 AWK_HISTORY='
-$1 + 0 < since { next }
+# Samples before the window still set the tower and width it starts from, so
+# a glitch on its first sample is held like any other.
+$1 + 0 < since { servtower(); width(); next }
 {
 	t = $1 + 0; n++
 	if (!t0) t0 = t
@@ -1437,7 +1439,9 @@ END {
 #             (the old and new software versions)
 # shellcheck disable=SC2016 # awk program, not shell
 AWK_HISTORY_JSON='
-$1 + 0 < since { next }
+# Samples before the window still set the tower and width it starts from, so
+# a glitch on its first sample is held like any other.
+$1 + 0 < since { servtower(); width(); next }
 {
 	t = $1 + 0; n++
 	if (!t0) t0 = t
