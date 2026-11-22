@@ -144,15 +144,44 @@ test_tower_new_id_on_same_cell_counts_after_5() {
 
 # Right after a move the first sample can carry yet another id: an id seen
 # only once doesn't hold.
-test_tower_id_seen_once_does_not_hold() {
+# Right after a move the first sample can report yet another id, then the
+# right one on the same PCI and channel: one move, to the right one.
+test_tower_id_seen_once_after_move_is_the_next_one() {
 	history <<-E
 		0 $N41 x5
 		5 registered n41 100 -94 23 7654321 201 222 501390
-		6 registered n41 100 -94 23 7654000 201 222 501390 x5
+		6 registered n41 100 -94 23 7654000 202 222 501390 x5
+	E
+	clock 20
+	eq "$(changes 1h)" "5 tower 1234567 -> 7654000" changes
+	eq "$(json '[.towers[].id] | join(",")')" "7654000,1234567" towers
+	tmhi history -s 1h
+	hasnt "7654321"
+}
+
+# The same on a move to another band, as seen on a real router: the stray
+# id had a cell id of its own.
+test_tower_id_seen_once_on_band_change() {
+	history <<-E
+		0 $N41 x5
+		5 registered n25 20 -93 14 7654321 3 124 396970
+		6 registered n25 20 -93 14 7654000 23 124 396970 x5
+	E
+	clock 20
+	eq "$(changes 1h)" "5 band n41 100 MHz -> n25 20 MHz tower 1234567 -> 7654000" changes
+}
+
+# A tower for one sample on another PCI or channel than the next sample is
+# a real (short) move.
+test_tower_one_sample_on_other_cell_counts() {
+	history <<-E
+		0 $N41 x5
+		5 registered n41 100 -94 23 7654321 201 222 501390
+		6 $N41 x5
 	E
 	clock 20
 	eq "$(changes 1h)" "5 tower 1234567 -> 7654321
-6 tower 7654321 -> 7654000" changes
+6 tower 7654321 -> 1234567" changes
 }
 
 test_named_tower() {

@@ -321,6 +321,48 @@ collect() {
 	eval "$out"
 }
 
+# Right after a move the gateway can report yet another tower id on the first
+# sample, then the right one on the same PCI and channel (one physical cell).
+# This passes history through one sample behind, and gives a tower id seen
+# on only one sample the id and cell id of the next sample when that is on
+# the same radio, PCI and channel. A one-bit glitch lasting one sample goes
+# the same way; longer ones are left to servtower(). Header lines pass
+# through (and end the lookahead).
+# shellcheck disable=SC2016 # awk program, not shell
+AWK_STRAY='
+BEGIN { FS = OFS = "\t" }
+$1 == "ts" { flush(); print; nc = split($0, H, "\t"); delete C; for (i = 1; i <= nc; i++) C[H[i]] = i; next }
+$1 !~ /^[0-9]+$/ { next }
+{
+	r = rad(); id = (r == "") ? "" : $(C[r "_nb"])
+	if (hl != "" && hr != "" && r == hr && id != hid && hid != pid && hpa != "" && hpa == pa(r)) {
+		n = split(hl, F, "\t"); F[C[r "_nb"]] = id
+		if ((r "_cid") in C) F[C[r "_cid"]] = $(C[r "_cid"])
+		hl = F[1]; for (i = 2; i <= n; i++) hl = hl "\t" F[i]
+		hid = id
+	}
+	flush()
+	hl = $0; hr = r; hid = id; hpa = (r == "") ? "" : pa(r)
+}
+END { flush() }
+# The radio the tower id is on (nr, lte), or "" without one.
+function rad() {
+	if (("nr_nb" in C) && $(C["nr_nb"]) != "-") return "nr"
+	if (("lte_nb" in C) && $(C["lte_nb"]) != "-") return "lte"
+	return ""
+}
+function pa(r,   p, a) {
+	p = ((r "_pci") in C) ? $(C[r "_pci"]) : "-"; a = ((r "_arfcn") in C) ? $(C[r "_arfcn"]) : "-"
+	return (p == "-" || a == "-") ? "" : p SUBSEP a
+}
+function flush() { if (hl != "") print hl; pid = (hl != "") ? hid : ""; hl = "" }
+'
+
+# history_lines SECS: history_cat for the readers, with stray tower ids fixed.
+history_lines() {
+	history_cat "$1" | awk "$AWK_STRAY"
+}
+
 # ---------------------------------------------------------------------------
 # Shared awk: history line parsing and the definition of a "good" sample
 
@@ -1585,7 +1627,7 @@ cmd_history() {
 		if [ -z "$bucket" ]; then bucket=$(json_bucket "$since"); fi
 		[ "$bucket" -gt 0 ] || die "bucket must be positive"
 		awk_env
-		history_cat $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" \
+		history_lines $((TS - since)) | run_awk "$AWK_HISTORY_JSON" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" \
 			-v bucket="$bucket" -v ivl=60 -v maxev=500 -v stuck="$STUCK_MINUTES"
 		return 0
 	fi
@@ -1599,7 +1641,7 @@ cmd_history() {
 	fi
 	[ "$bucket" -gt 0 ] || die "bucket must be positive"
 	awk_env
-	history_cat $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" -v bucket="$bucket" -v maxev=25 \
+	history_lines $((TS - since)) | run_awk "$AWK_HISTORY" -v since="$((TS - since))" -v now="$TS" -v eventfile="$EVENTS" -v bucket="$bucket" -v maxev=25 \
 		-v B="$BOLD" -v DIM="$DIM" -v RST="$RESET" -v GRN="$GREEN" -v YEL="$YELLOW" -v RED="$RED"
 }
 
