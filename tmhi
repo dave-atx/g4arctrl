@@ -12,7 +12,7 @@
 set -eu
 umask 077
 
-VERSION=0.5.0
+VERSION=0.6.0
 
 # Settings live in UCI: /etc/config/tmhi, section "main" (see openwrt/tmhi/files/tmhi.config).
 # Without uci (not OpenWrt), everything takes its default.
